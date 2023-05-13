@@ -1,0 +1,3 @@
+packages: heuron.cabal
+
+test-show-details: streaming
