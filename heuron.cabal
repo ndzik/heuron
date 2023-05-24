@@ -24,15 +24,22 @@ extra-source-files:
     README.md
 
 library
-    exposed-modules:  Heuron
-                    , Heuron.Neuron
+    exposed-modules:  Heuron.V1
+                    , Heuron.V1.Network
+                    , Heuron.Functions
 
     -- Modules included in this library but not exported.
     -- other-modules:
 
     -- LANGUAGE extensions used by modules in this package.
-    -- other-extensions:
+    other-extensions: TemplateHaskell
     build-depends:    base ^>=4.14.3.0
+                    , mtl
+                    , lens
+                    , number
+                    , random
+                    , linear
+                    , vector
     hs-source-dirs:   src
     default-language: Haskell2010
 
@@ -46,7 +53,16 @@ executable heuron
     -- other-extensions:
     build-depends:
         base ^>=4.14.3.0,
-        heuron
+        heuron,
+        plots,
+        diagrams-core,
+        diagrams-lib,
+        diagrams-contrib,
+        diagrams-svg,
+        lens,
+        vector,
+        mtl,
+        linear
 
     hs-source-dirs:   app
     default-language: Haskell2010
