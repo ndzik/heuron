@@ -4,12 +4,29 @@
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE PolyKinds #-}
 {-# LANGUAGE RankNTypes #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE UndecidableInstances #-}
 
-module Heuron.V1.Network where
+module Heuron.V1.Network
+  ( ActivationFunction,
+
+    -- * Layer & Lenses
+    Layer (..),
+    weights,
+    bias,
+    activation,
+
+    -- * Network
+    Network (..),
+
+    -- * Forward propagation
+    Forward (..),
+  )
+where
 
 import Control.Lens
 import Data.Kind (Constraint)
@@ -38,6 +55,17 @@ makeLenses ''Layer
 
 infixr 5 :>:
 
+-- | Network is an abstract definition of an artifical neural net.
+--
+-- Example:
+-- @
+--  let o1 = Layer inputLayerWeights inputLayerBias relu
+--      o2 = Layer hidden01LayerWeights hidden01LayerBias relu
+--      o3 = Layer hidden02LayerWeights hidden02LayerBias relu
+--      o4 = Layer outputLayerWeights outputLayerBias relu
+--      network = o1 :>: o2 :>: o3 :>: o4 :>: NetworkEnd
+--      result = forward network (head input)
+-- @
 data Network as where
   NetworkEnd :: Network '[]
   (:>:) :: a -> Network as -> Network (a ': as)

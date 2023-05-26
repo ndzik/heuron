@@ -22,8 +22,7 @@ import Data.Vector (fromList)
 import Diagrams.Backend.SVG.CmdLine
 import GHC.TypeLits
 import Heuron.Functions
-import qualified Heuron.V1 as Heuron
-import Heuron.V1.Network
+import Heuron.V1
 import Linear.Matrix
 import Linear.Metric
 import Linear.V
@@ -38,18 +37,18 @@ relu = max 0
 
 neuralNet :: [Datum] -> IO ()
 neuralNet ds = do
-  input <- mapM (\d -> mkV @2 [d ^. x, d ^. y]) ds
+  input <- mapM (\d -> mkV' @2 [d ^. x, d ^. y]) ds
 
   -- Input layer with 2 inputs and 3 neurons.
-  inputLayerWeights <- mkM @2 @3 [[1 | _ <- [1 .. 3]] | _ <- [1 .. 2]]
-  inputLayerBias <- mkV @3 [1 | _ <- [1 .. 3]]
+  inputLayerWeights <- mkM' @2 @3 [[1 | _ <- [1 .. 3]] | _ <- [1 .. 2]]
+  inputLayerBias <- mkV' @3 [1 | _ <- [1 .. 3]]
 
-  hidden01LayerWeights <- mkM @3 @4 undefined
-  hidden01LayerBias <- mkV @4 undefined
-  hidden02LayerWeights <- mkM @4 @4 undefined
-  hidden02LayerBias <- mkV @4 undefined
-  outputLayerWeights <- mkM @4 @3 undefined
-  outputLayerBias <- mkV @3 undefined
+  hidden01LayerWeights <- mkM' @3 @4 undefined
+  hidden01LayerBias <- mkV' @4 undefined
+  hidden02LayerWeights <- mkM' @4 @4 undefined
+  hidden02LayerBias <- mkV' @4 undefined
+  outputLayerWeights <- mkM' @4 @3 undefined
+  outputLayerBias <- mkV' @3 undefined
 
   let o1 = Layer inputLayerWeights inputLayerBias relu
       o2 = Layer hidden01LayerWeights hidden01LayerBias relu
@@ -58,11 +57,3 @@ neuralNet ds = do
       network = o1 :>: o2 :>: o3 :>: o4 :>: NetworkEnd
       result = forward network (head input)
   return ()
-
-mkV :: forall n a. (KnownNat n) => [a] -> IO (V n a)
-mkV xs = case fromVector . fromList $ xs of
-  Just v -> return v
-  Nothing -> error "mkVector: failed to create vector"
-
-mkM :: forall i n. (KnownNat i, KnownNat n) => [[Double]] -> IO (V n (V i Double))
-mkM xs = mapM (mkV @i) xs >>= mkV @n

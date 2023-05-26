@@ -26,6 +26,8 @@ extra-source-files:
 library
     exposed-modules:  Heuron.V1
                     , Heuron.V1.Network
+                    , Heuron.V1.Matrix
+                    , Heuron.V1.Vector
                     , Heuron.Functions
 
     -- Modules included in this library but not exported.
