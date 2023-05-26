@@ -1,51 +1,102 @@
+{-# LANGUAGE DataKinds #-}
+{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE GADTs #-}
+{-# LANGUAGE PolyKinds #-}
+{-# LANGUAGE RankNTypes #-}
+{-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE TypeOperators #-}
+{-# LANGUAGE UndecidableInstances #-}
 
 module Heuron.V1.Network where
 
--- | Network describes a neural network. `Network Input Output [Hidden]`.
-data Network = Network !Layer !Layer ![Layer]
+import Control.Lens
+import Data.Kind (Constraint)
+import GHC.TypeLits
+import Linear.Matrix
+import Linear.V
+import Linear.Vector
 
--- | A NetworkInterpreter is responsible for interpreting the described neural
--- network. It encapsulates a backend implementation. The implementation of the
--- interpreter decides what kind (TODO: or type?) the activation function have
--- and how the resulting code looks like.
---
--- E.g. a haskell software backend will require the ActivationFunction to be
--- of type `(Inputs, Weights) -> Bias -> a`, where a is dependent on the
--- specific activation function used.
--- Furthermore we want to be able to write a generic trainer and executor for
--- the network using any backend.
---
--- Training:
---  * Feed forward data -> Evaluate layers (step) -> Result
---  * Backprop and let network update
---
--- Having a generic way to train the network independent of the backend allows
--- implementation of visualization methods for viewing the training progress.
-class NetworkInterpreter i
+type ActivationFunction = Double -> Double
 
--- | A layer of a neural network with n neurons utilizing the given
--- activation/classifier function.
-data Layer where
-  MkLayer :: Int -> f -> Layer
+-- | Layers state, where n is the number of neurons and m is the number of
+-- inputs.
+data Layer (i :: k) (n :: k) = Layer
+  { -- | Weights of the layer as a matrix of size m x n, where n is the number
+    -- of neurons and m is the number of inputs. Each neuron is identified by
+    -- the row index.
+    _weights :: !(V n (V i Double)),
+    -- | Bias of the layer as a vector of size n, where n is the number of
+    -- neurons.
+    _bias :: !(V n Double),
+    -- | The activation function used for each neuron in the layer.
+    _activation :: !ActivationFunction
+  }
 
--- -- | ActivationFunction describes an activation function. In context to a neural
--- -- network it is required to be differentiable.
--- class ActivationFunction f where
---   -- | activate uses the given activation function `f` together with a
---   -- collection of inputs, collection of weights and a bias to return an
---   -- activation result.
---   activate :: Functor c => f -> c Double -> c Double -> Double -> Double
+makeLenses ''Layer
 
-type family Activation f
+infixr 5 :>:
 
--- | Use an open type-family to allow injection of new activation functions
--- outside the scope of this module/library.
--- data family Activation f
+data Network as where
+  NetworkEnd :: Network '[]
+  (:>:) :: a -> Network as -> Network (a ': as)
 
--- | Softmax activation function.
-data Softmax = Softmax
+-- | Forward is the typelevel interpreter for our constructed network. It will
+-- generate the correct amounts of forward calls for each layer.
+class Forward as where
+  forward :: as -> InputOf as -> OutputOf as
 
--- | ReLU activation function.
-data ReLU = ReLU
+type family InputOf a where
+  InputOf (Network (Layer i n : as)) = V i Double
+
+-- | OutputOf determines the final output of the given network depending on its
+-- final layer.
+type family OutputOf a where
+  OutputOf (Network '[Layer i n]) = V n Double
+  OutputOf (Network (Layer i n : as)) = OutputOf (Network as)
+
+-- | Compatible ensures that a given list of layers is compatible, which means
+-- that the input dimensions for each layer are compatible with the output
+-- dimension of each previous layer.
+type family Compatible a bs :: Constraint where
+  Compatible (Layer i n) (Layer j k : bs) = (n ~ j, Compatible (Layer j k) bs)
+  Compatible (Layer i n) '[] = ()
+
+-- | Recursion stop for Forward. Networks are at least two layers deep, input
+-- and output layer.
+instance
+  {-# OVERLAPPING #-}
+  ( KnownNat i,
+    KnownNat n,
+    KnownNat j,
+    KnownNat k,
+    Compatible (Layer i n) '[Layer j k]
+  ) =>
+  Forward (Network '[Layer i n, Layer j k])
+  where
+  forward (pl :>: ll :>: NetworkEnd) = forwardInput ll . forwardInput pl
+
+-- | Recursion step for Forward. This will construct a chain of forward calls
+-- that pass the output of the previous layer to the next layer.
+instance
+  ( Forward (Network as),
+    KnownNat i,
+    KnownNat n,
+    Compatible (Layer i n) as,
+    InputOf (Network as) ~ V n Double,
+    OutputOf (Network as) ~ OutputOf (Network (Layer i n : as))
+  ) =>
+  Forward (Network (Layer i n : as))
+  where
+  forward (l :>: ls) = forward ls . forwardInput l
+
+forwardInput :: (KnownNat n, KnownNat i) => Layer i n -> V i Double -> V n Double
+forwardInput s inputs = do
+  -- This does for every neuron i (row) in the layer:
+  -- > Σ(w_ij * x_j) + b_i
+  -- where `i` is the neuron index and `j` is the input index.
+  let weightedInputs = ((s ^. weights) !* inputs) ^+^ (s ^. bias)
+      activationFunction = s ^. activation
+  -- Apply activation and return result for this layer.
+  activationFunction <$> weightedInputs
