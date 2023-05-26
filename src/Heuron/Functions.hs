@@ -1,10 +1,24 @@
+{-# LANGUAGE DataKinds #-}
+{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE GADTs #-}
+{-# LANGUAGE PolyKinds #-}
+{-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE TypeOperators #-}
+{-# LANGUAGE UndecidableInstances #-}
 
 -- | This module provides some miscellaneous functions which can be used to
 -- evaluate a Heuron network.
 module Heuron.Functions where
 
 import Control.Lens
+import Data.Kind (Constraint)
+import GHC.TypeLits
+import Linear.Matrix
+import Linear.V
+import Linear.Vector
 import System.Random
 
 data Datum = Datum

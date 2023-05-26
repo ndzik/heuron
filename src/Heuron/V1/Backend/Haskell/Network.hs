@@ -6,18 +6,10 @@
 module Heuron.V1.Backend.Haskell.Network where
 
 import Control.Monad.State
-import Heuron.Network
+import Heuron.V1.Network
 
 type HaskellNetworkM m a = StateT NetworkState m a
 
 type HaskellNetwork a = HaskellNetworkM IO a
 
 data NetworkState
-
--- | buildNetwork builds a HaskellNetwork from the given Network description.
-buildNetwork :: Network -> HaskellNetwork a
-buildNetwork (Network i o hs) = undefined
-  where
-    x = map buildLayer hs
-    buildLayer (MkLayer n a) = case a of
-      _ -> undefined

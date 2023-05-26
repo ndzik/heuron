@@ -3,10 +3,6 @@
 
 module Main where
 
-import Data.Data
-import GHC.TypeLits
-import Heuron.V1
-
 main :: IO ()
 main = do
   -- We want correct by construction networks. This means they have to be
@@ -47,11 +43,4 @@ main = do
   --
   -- The hidden layer description will utilize the infix type-constructor `:>:`
   --  Hidden j a :>: Hidden k a' :>: Hidden l a''
-  let x = Network input output hidden
-      input = MkLayer 8 ReLU
-      output = MkLayer 4 Softmax
-      hidden = [MkLayer 16 ReLU, MkLayer 8 ReLU]
   print "heuron"
-
--- | Sigmoid activation function.
-data Sigmoid
