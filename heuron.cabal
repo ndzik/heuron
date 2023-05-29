@@ -25,13 +25,16 @@ extra-source-files:
 
 library
     exposed-modules:  Heuron.V1
-                    , Heuron.V1.Network
-                    , Heuron.V1.Matrix
-                    , Heuron.V1.Vector
                     , Heuron.Functions
+                    , Heuron.V1.Batched
+                    , Heuron.V1.Single
 
     -- Modules included in this library but not exported.
-    -- other-modules:
+    other-modules:    Heuron.V1.Batched.Network
+                    , Heuron.V1.Batched.Input
+                    , Heuron.V1.Single.Network
+                    , Heuron.V1.Matrix
+                    , Heuron.V1.Vector
 
     -- LANGUAGE extensions used by modules in this package.
     other-extensions: TemplateHaskell

@@ -11,7 +11,7 @@
 {-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE UndecidableInstances #-}
 
-module Heuron.V1.Network
+module Heuron.V1.Single.Network
   ( ActivationFunction,
 
     -- * Layer & Lenses

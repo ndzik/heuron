@@ -31,7 +31,7 @@ where
 import Control.Lens
 import Data.Kind (Constraint)
 import GHC.TypeLits
-import Heuron.V1.Input
+import Heuron.V1.Batched.Input
 import Linear.Matrix
 import Linear.V
 import Linear.Vector
