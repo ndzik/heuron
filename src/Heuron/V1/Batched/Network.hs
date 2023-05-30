@@ -62,11 +62,18 @@ networkEnd a b = a :>: b :>: NetworkEnd
 type family InputOf a where
   InputOf (Network b (Layer i n : as)) = Input b i Double
 
--- | OutputOf determines the final output of the given network depending on its
--- final layer.
-type family OutputOf a where
-  OutputOf (Network b '[Layer i n]) = Input b n Double
-  OutputOf (Network b (Layer i n : as)) = OutputOf (Network b as)
+type family Reversed as where
+  Reversed (Network b as) = Network b (Reversed' as '[])
+
+type family Reversed' as bs where
+  Reversed' '[] bs = bs
+  Reversed' (a ': as) bs = Reversed' as (a ': bs)
+
+-- | FinalOutputOf determines the final output of the given network depending
+-- on its final layer.
+type family FinalOutputOf a where
+  FinalOutputOf (Network b '[Layer i n]) = Input b n Double
+  FinalOutputOf (Network b (Layer i n : as)) = FinalOutputOf (Network b as)
 
 -- | Compatible ensures that a given list of layers is compatible, which means
 -- that the input dimensions for each layer are compatible with the output
@@ -75,44 +82,17 @@ type family Compatible a bs :: Constraint where
   Compatible (Layer i n) (Layer j k : bs) = (n ~ j, Compatible (Layer j k) bs)
   Compatible (Layer i n) '[] = ()
 
--- | Recursion stop for Forward. Networks are at least two layers deep, input
--- and output layer.
-instance
-  {-# OVERLAPPING #-}
-  ( KnownNat i,
-    KnownNat n,
-    KnownNat j,
-    KnownNat k,
-    KnownNat b,
-    Compatible (Layer i n) '[Layer j k]
-  ) =>
-  Forward (Network b '[Layer i n, Layer j k])
-  where
-  forward (pl :>: ll :>: NetworkEnd) i = forwardInput ll . forwardInput pl $ i
+type family IsReversed as bs cs :: Constraint where
+  IsReversed (a : as) '[] cs = (IsReversed as '[a] cs)
+  IsReversed (a : as) bs cs = (IsReversed as (a ': bs) cs)
+  IsReversed '[] bs cs = (bs ~ cs)
 
--- | Recursion step for Forward. This will construct a chain of forward calls
--- that pass the output of the previous layer to the next layer.
-instance
-  ( Forward (Network b as),
-    KnownNat i,
-    KnownNat n,
-    KnownNat b,
-    Compatible (Layer i n) as,
-    InputOf (Network b as) ~ Input b n Double,
-    OutputOf (Network b as) ~ OutputOf (Network b (Layer i n : as))
-  ) =>
-  Forward (Network b (Layer i n : as))
+reverseNetwork ::
+  (IsReversed as '[] cs, cs ~ Reversed' as '[]) =>
+  Network b as ->
+  Network b cs
+reverseNetwork nn = reverse' nn NetworkEnd
   where
-  forward (l :>: ls) = forward ls . forwardInput l
-
-forwardInput :: (KnownNat m, KnownNat n, KnownNat i) => Layer i n -> Input m i Double -> Input m n Double
-forwardInput s inputs =
-  -- This does for every neuron i (row) in the layer:
-  -- > Σ(w_ij * x_j) + b_i
-  -- where `i` is the neuron index and `j` is the input index.
-  let transposedNeurons = s ^. weights . to transpose
-      weightedInputs = (inputs !*! transposedNeurons) <&> (+ (s ^. bias))
-      activationFunction = s ^. activation
-   in -- Apply activation and return result for this layer for each observation
-      -- in input set.
-      (activationFunction <$>) <$> weightedInputs
+    reverse' :: (IsReversed ds es fs) => Network b ds -> Network b es -> Network b fs
+    reverse' NetworkEnd acc = acc
+    reverse' (l :>: ls) acc = reverse' ls (l :>: acc)
