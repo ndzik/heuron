@@ -87,6 +87,18 @@ type family IsReversed as bs cs :: Constraint where
   IsReversed (a : as) bs cs = (IsReversed as (a ': bs) cs)
   IsReversed '[] bs cs = (bs ~ cs)
 
+-- | Reverses the order of layers for the given network.
+--
+-- E.g.:
+--
+--  > let ann = inputLayer id :>: hiddenLayer id =| outputLayer id
+--  >     ann' = reverseNetwork ann
+--
+--  > :type ann
+--  > ann :: Network b '[Layer 6 2, Layer 3 3, Layer 3 2]
+--
+--  > :type ann'
+--  > ann' :: Network b '[Layer 3 2, Layer 3 3, Layer 6 2]
 reverseNetwork ::
   (IsReversed as '[] cs, cs ~ Reversed' as '[]) =>
   Network b as ->
