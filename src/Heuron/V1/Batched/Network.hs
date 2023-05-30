@@ -22,6 +22,7 @@ module Heuron.V1.Batched.Network
 
     -- * Network
     Network (..),
+    (=|),
 
     -- * Forward propagation
     Forward (..),
@@ -72,6 +73,16 @@ infixr 5 :>:
 data Network b as where
   NetworkEnd :: Network b '[]
   (:>:) :: a -> Network b as -> Network b (a ': as)
+
+infixr 5 =|
+
+-- | (=|) is a used as a combinator to construct the output layer of a network.
+(=|) :: a -> b -> Network c '[a, b]
+(=|) = networkEnd
+
+-- | networkEnd is a used as a combinator to construct a network.
+networkEnd :: a -> b -> Network c '[a, b]
+networkEnd a b = a :>: b :>: NetworkEnd
 
 -- | Forward is the typelevel interpreter for our constructed network. It will
 -- generate the correct amounts of forward calls for each layer.
