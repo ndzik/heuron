@@ -1,5 +1,3 @@
-{-# LANGUAGE PolyKinds #-}
-
 module Heuron.V1.Batched.Input where
 
 import qualified Data.Vector as V

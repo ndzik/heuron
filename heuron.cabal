@@ -36,8 +36,17 @@ library
                     , Heuron.V1.Matrix
                     , Heuron.V1.Vector
 
-    -- LANGUAGE extensions used by modules in this package.
-    other-extensions: TemplateHaskell
+    default-extensions: TemplateHaskell
+                      , DataKinds
+                      , FlexibleContexts
+                      , FlexibleInstances
+                      , GADTs
+                      , PolyKinds
+                      , RankNTypes
+                      , ScopedTypeVariables
+                      , TypeApplications
+                      , TypeFamilies
+                      , TypeOperators
     build-depends:    base ^>=4.14.3.0
                     , mtl
                     , lens
