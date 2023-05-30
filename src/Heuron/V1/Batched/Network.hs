@@ -68,6 +68,8 @@ infixr 5 :>:
 --      o3 = Layer hidden02LayerWeights hidden02LayerBias relu
 --      o4 = Layer outputLayerWeights outputLayerBias relu
 --      network = o1 :>: o2 :>: o3 :>: o4 :>: NetworkEnd
+--      -- Alternatively using combinator syntax:
+--      network' = o1 :>: o2 :>: o3 =| o4
 --      result = forward network (head input)
 -- @
 data Network b as where
