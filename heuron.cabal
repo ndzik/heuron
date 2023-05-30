@@ -33,6 +33,8 @@ library
     other-modules:    Heuron.V1.Batched.Network
                     , Heuron.V1.Batched.Input
                     , Heuron.V1.Batched.Forward
+                    , Heuron.V1.Batched.Backprop
+                    , Heuron.V1.Batched.Loss
                     , Heuron.V1.Single.Network
                     , Heuron.V1.Matrix
                     , Heuron.V1.Vector
