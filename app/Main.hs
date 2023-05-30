@@ -36,14 +36,13 @@ neuralNet ds = do
   input <- mapM (\d -> mkV' @2 [d ^. x, d ^. y]) ds
 
   -- Input layer with 2 inputs and 3 neurons.
-  inputLayerWeights <- mkM' @2 @3 [[1 | _ <- [1 .. 3]] | _ <- [1 .. 2]]
+  inputLayerWeights <- mkM' @3 @2 [[1 | _ <- [1 .. 3]] | _ <- [1 .. 2]]
   inputLayerBias <- mkV' @3 [1 | _ <- [1 .. 3]]
-
-  hidden01LayerWeights <- mkM' @3 @4 undefined
+  hidden01LayerWeights <- mkM' @4 @3 undefined
   hidden01LayerBias <- mkV' @4 undefined
   hidden02LayerWeights <- mkM' @4 @4 undefined
   hidden02LayerBias <- mkV' @4 undefined
-  outputLayerWeights <- mkM' @4 @3 undefined
+  outputLayerWeights <- mkM' @3 @4 undefined
   outputLayerBias <- mkV' @3 undefined
 
   let o1 = Layer inputLayerWeights inputLayerBias relu

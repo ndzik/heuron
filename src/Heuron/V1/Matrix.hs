@@ -22,8 +22,8 @@ import Linear.V
 --                                                --          (V2 5.0 6.0))
 --         _ <- mkM @3 @2 [[1, 2], [3, 4], [5]]   -- Nothing
 -- @
-mkM :: forall i n. (KnownNat i, KnownNat n) => [[Double]] -> Maybe (V n (V i Double))
-mkM = join . mapM (mkV @n) . mapM (mkV @i)
+mkM :: forall n m. (KnownNat n, KnownNat m) => [[Double]] -> Maybe (V n (V m Double))
+mkM = join . mapM (mkV @n) . mapM (mkV @m)
 
 -- | Creates a matrix with dimension n x m from a list of lists of values. This
 -- will fail if the given list of lists of values does not match the dimension
@@ -38,5 +38,5 @@ mkM = join . mapM (mkV @n) . mapM (mkV @i)
 --                                             --     (V2 5.0 6.0))
 --     _ <- mkM @3 @2 [[1, 2], [3, 4], [5]]    -- error
 -- @
-mkM' :: forall i n. (KnownNat i, KnownNat n) => [[Double]] -> IO (V n (V i Double))
-mkM' xs = mapM (mkV' @i) xs >>= mkV' @n
+mkM' :: forall n m. (KnownNat n, KnownNat m) => [[Double]] -> IO (V n (V m Double))
+mkM' xs = mapM (mkV' @m) xs >>= mkV' @n
