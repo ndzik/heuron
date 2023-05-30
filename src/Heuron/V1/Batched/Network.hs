@@ -1,22 +1,6 @@
 {-# LANGUAGE UndecidableInstances #-}
 
-module Heuron.V1.Batched.Network
-  ( ActivationFunction,
-
-    -- * Layer & Lenses
-    Layer (..),
-    weights,
-    bias,
-    activation,
-
-    -- * Network
-    Network (..),
-    (=|),
-
-    -- * Forward propagation
-    Forward (..),
-  )
-where
+module Heuron.V1.Batched.Network where
 
 import Control.Lens
 import Data.Kind (Constraint)
@@ -74,11 +58,6 @@ infixr 5 =|
 -- | networkEnd is a used as a combinator to construct a network.
 networkEnd :: a -> b -> Network c '[a, b]
 networkEnd a b = a :>: b :>: NetworkEnd
-
--- | Forward is the typelevel interpreter for our constructed network. It will
--- generate the correct amounts of forward calls for each layer.
-class Forward as where
-  forward :: as -> InputOf as -> OutputOf as
 
 type family InputOf a where
   InputOf (Network b (Layer i n : as)) = Input b i Double
