@@ -1,3 +1,4 @@
+{-# LANGUAGE RoleAnnotations #-}
 {-# LANGUAGE UndecidableInstances #-}
 
 module Heuron.V1.Batched.Network where
@@ -11,6 +12,8 @@ import Linear.V
 import Linear.Vector
 
 type ActivationFunction = Double -> Double
+
+type role Layer nominal nominal
 
 -- | Layers state, where n is the number of neurons and m is the number of
 -- inputs.
@@ -45,7 +48,7 @@ infixr 5 :>:
 --      network' = o1 :>: o2 :>: o3 =| o4
 --      result = forward network (head input)
 -- @
-data Network b as where
+data Network (b :: Nat) as where
   NetworkEnd :: Network b '[]
   (:>:) :: a -> Network b as -> Network b (a ': as)
 
