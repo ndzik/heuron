@@ -20,9 +20,16 @@ module Heuron.V1.Batched
 
     -- * Loss primitives
     categoricalCrossEntropy,
+
+    -- * Activation primitives
+    ActivationFunction (..),
+    Differentiable (..),
+    ReLU (..),
+    Softmax (..),
   )
 where
 
+import Heuron.V1.Batched.Activation
 import Heuron.V1.Batched.Forward
 import Heuron.V1.Batched.Input
 import Heuron.V1.Batched.Loss
