@@ -36,6 +36,7 @@ library
                     , Heuron.V1.Batched.Backprop
                     , Heuron.V1.Batched.Activation
                     , Heuron.V1.Batched.Loss
+                    , Heuron.V1.Batched.Layer
                     , Heuron.V1.Batched.Optimizer
                     , Heuron.V1.Single.Network
                     , Heuron.V1.Matrix
