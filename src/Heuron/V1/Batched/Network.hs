@@ -4,6 +4,7 @@ module Heuron.V1.Batched.Network where
 
 import Data.Kind (Constraint)
 import GHC.TypeLits
+import Heuron.V1.Batched.Activation
 import Heuron.V1.Batched.Input
 import Heuron.V1.Batched.Layer
 import Linear.Matrix
@@ -42,7 +43,7 @@ networkEnd :: a -> b -> Network c '[a, b]
 networkEnd a b = a :>: b :>: NetworkEnd
 
 type family InputOf a where
-  InputOf (Network b (Layer i n : as)) = Input b i Double
+  InputOf (Network b (Layer b i n _ _ : as)) = Input b i Double
 
 type family Reversed as where
   Reversed (Network b as) = Network b (Reversed' as '[])
@@ -51,18 +52,24 @@ type family Reversed' as bs where
   Reversed' '[] bs = bs
   Reversed' (a ': as) bs = Reversed' as (a ': bs)
 
+type family NextOutput a where
+  NextOutput (Network b (Layer b i n _ _ : ls)) = Input b n Double
+
+type family NextLayer as where
+  NextLayer (Network b (Layer b i n af op : ls)) = Layer b i n af op
+
 -- | FinalOutputOf determines the final output of the given network depending
 -- on its final layer.
 type family FinalOutputOf a where
-  FinalOutputOf (Network b '[Layer i n]) = Input b n Double
-  FinalOutputOf (Network b (Layer i n : as)) = FinalOutputOf (Network b as)
+  FinalOutputOf (Network b '[Layer b i n _ _]) = Input b n Double
+  FinalOutputOf (Network b (Layer b i n _ _ : as)) = FinalOutputOf (Network b as)
 
 -- | Compatible ensures that a given list of layers is compatible, which means
 -- that the input dimensions for each layer are compatible with the output
 -- dimension of each previous layer.
 type family Compatible a bs :: Constraint where
-  Compatible (Layer i n) (Layer j k : bs) = (n ~ j, Compatible (Layer j k) bs)
-  Compatible (Layer i n) '[] = ()
+  Compatible (Layer b i n af op) (Layer b' j k af' op' : bs) = (n ~ j, b ~ b', Compatible (Layer b' j k af' op') bs)
+  Compatible (Layer b i n af op) '[] = ()
 
 type family IsReversed as bs cs :: Constraint where
   IsReversed (a : as) '[] cs = (IsReversed as '[a] cs)
