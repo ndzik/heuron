@@ -52,3 +52,6 @@ spiral alpha beta cl phi = Datum x y cl
     --  beta != 0
     radius = alpha * e ** (beta * phi)
     e = exp 1
+
+zero :: forall (f :: * -> *) a. (Additive f, Num a) => f a
+zero = Linear.Vector.zero
