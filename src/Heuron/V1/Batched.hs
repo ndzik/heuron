@@ -26,6 +26,9 @@ module Heuron.V1.Batched
     Differentiable (..),
     ReLU (..),
     Softmax (..),
+
+    -- * Layer/Network optimizers
+    module Heuron.V1.Batched.Optimizer,
   )
 where
 
@@ -34,3 +37,4 @@ import Heuron.V1.Batched.Forward
 import Heuron.V1.Batched.Input
 import Heuron.V1.Batched.Loss
 import Heuron.V1.Batched.Network
+import Heuron.V1.Batched.Optimizer
