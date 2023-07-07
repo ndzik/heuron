@@ -5,6 +5,7 @@ module Heuron.V1.Batched.Backprop where
 import Control.Lens
 import Data.Kind (Constraint)
 import GHC.TypeLits (KnownNat)
+import Heuron.Functions
 import Heuron.V1.Batched.Activation
 import Heuron.V1.Batched.Input
 import Heuron.V1.Batched.Layer
@@ -13,7 +14,7 @@ import Heuron.V1.Batched.Optimizer
 import Linear (Metric (..))
 import Linear.Matrix
 import Linear.V (Dim, V)
-import Linear.Vector
+import Linear.Vector hiding (zero)
 
 -- | Backprop is the typelevel recursion entry for backpropagating a network.
 -- Backprop can only be applied to Networks whose reversed list of layers
@@ -21,7 +22,7 @@ import Linear.Vector
 -- This is trivially the case if the Network is `Compatible` and implements
 -- the `Forward` typeclass.
 class Backprop as where
-  backprop :: as -> NextOutput (Reversed as) -> as
+  backprop :: (o ~ NextOutput (Reversed as)) => as -> o -> o -> as
 
 instance
   ( Backprop' (Network b sl),
@@ -32,13 +33,13 @@ instance
   ) =>
   Backprop (Network b ls)
   where
-  backprop ann = reverseNetwork . backprop' (reverseNetwork ann)
+  backprop ann i = reverseNetwork . backprop' (reverseNetwork ann) i
 
 -- | Backprop' is the typelevel interpreter for our constructed network. It will
 -- generate the correct amounts of backprop calls for each layer constructing
 -- a network where all layers contain updated weights and biases.
 class Backprop' as where
-  backprop' :: as -> NextOutput as -> as
+  backprop' :: (o ~ NextOutput as) => as -> o -> o -> as
 
 instance
   {-# OVERLAPPING #-}
@@ -52,9 +53,10 @@ instance
   ) =>
   Backprop' (Network b [Layer b' i n af op, Layer b'' i' n' af' op'])
   where
-  backprop' (l1 :>: l2 :>: NetworkEnd) gradients =
-    let (l1', gradients') = backpropLayer l1 gradients
-        (l2', _) = backpropLayer l2 gradients'
+  backprop' (l1 :>: l2 :>: NetworkEnd) l1Output gradients =
+    let (l1', gradients') = backpropLayer l1 l1Output gradients
+        l2Output = l1 ^. input
+        (l2', _) = backpropLayer l2 l2Output gradients'
      in l1' :>: l2' :>: NetworkEnd
 
 instance
@@ -69,9 +71,10 @@ instance
   ) =>
   Backprop' (Network b (Layer b' i n af op : Layer b'' i' i af' op' : Layer b''' i'' i' af'' op'' : rs))
   where
-  backprop' (l1 :>: l2 :>: ls) gradients =
-    let (l1', gradients') = backpropLayer l1 gradients
-     in l1' :>: backprop' (l2 :>: ls) gradients'
+  backprop' (l1 :>: l2 :>: ls) l1Output gradients =
+    let (l1', gradients') = backpropLayer l1 l1Output gradients
+        l2Output = l1 ^. input
+     in l1' :>: backprop' (l2 :>: ls) l2Output gradients'
 
 -- | Backpropagatable checks that a given network is backpropagatable. It is
 -- similar to the Compatibility check in `Heuron.V1.Batched.Network`.
@@ -108,18 +111,19 @@ backpropLayer ::
   ) =>
   -- | Layer to backpropagate.
   Layer b i n af op ->
+  -- | Output of the layer that is backpropagated.
+  Input b n Double ->
   -- | Gradients of the previous layer.
   Input b n Double ->
   -- | Layer with updated weights and biases and the gradients used for the
   -- previous layer.
   (Layer b i n af op, Input b i Double)
-backpropLayer l prevGradients =
+backpropLayer l originalOutput prevGradients =
   let dActivation = l ^. activationFunction . to derivative
       ws = l ^. weights
-      bs = l ^. bias
       is = l ^. input
-      layerOutput = (is !*! transpose ws) <&> (+ bs)
-      activated = (dActivation <$>) <$> layerOutput
+      originalInput = l ^. input
+      activated = dActivation is originalInput originalOutput
       gradients = mergeEntriesWith (*) activated prevGradients
    in -- Influence of the inputs to this layer on the output of this layer.
       --
@@ -156,6 +160,3 @@ backpropLayer l prevGradients =
           dBias = foldr (^+^) zero gradients
           optimizedLayer = optimize l dWeights dBias
        in (optimizedLayer, dInputs)
-
-mergeEntriesWith :: (Dim n, Dim m) => (a -> b -> c) -> V n (V m a) -> V n (V m b) -> V n (V m c)
-mergeEntriesWith f = liftI2 (liftI2 f)

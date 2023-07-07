@@ -71,4 +71,4 @@ forwardInput s inputs =
       af = s ^. activationFunction . to activation
    in -- Apply activation and return result for this layer for each observation
       -- in input set.
-      (af <$>) <$> weightedInputs
+      af weightedInputs

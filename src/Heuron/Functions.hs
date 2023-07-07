@@ -55,3 +55,6 @@ spiral alpha beta cl phi = Datum x y cl
 
 zero :: forall (f :: * -> *) a. (Additive f, Num a) => f a
 zero = Linear.Vector.zero
+
+mergeEntriesWith :: (Dim n, Dim m) => (a -> b -> c) -> V n (V m a) -> V n (V m b) -> V n (V m c)
+mergeEntriesWith f = liftI2 (liftI2 f)
