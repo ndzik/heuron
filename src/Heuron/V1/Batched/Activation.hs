@@ -1,3 +1,8 @@
+{-# LANGUAGE InstanceSigs #-}
+{-# LANGUAGE RoleAnnotations #-}
+{-# LANGUAGE ScopedTypeVariables #-}
+{-# OPTIONS_GHC -Wno-deferred-out-of-scope-variables #-}
+
 -- | Any activation function can be implemented outside of this library by
 -- defining a data type that implements the `ActivationFunction` and
 -- `Differentiable` typeclasses.
@@ -6,10 +11,11 @@ module Heuron.V1.Batched.Activation where
 import Control.Lens
 import GHC.TypeLits
 import Heuron.Functions hiding (Datum (..))
-import Linear (transpose, (!-!))
+import Linear (Metric (dot), scaled, transpose, (!-!))
 import Linear.Matrix (identity, (!*), (!*!), (*!), (*!!))
 import Linear.V
-import Linear.Vector (Additive (liftI2))
+import Linear.V1
+import Linear.Vector (Additive (liftI2), (*^))
 import Prelude hiding (zip)
 
 class Differentiable a where
@@ -45,15 +51,27 @@ instance ActivationFunction ReLU where
 
 -- | Softmax activation function carrying the input dimension `d` as a phantom
 -- type.
-data Softmax (d :: Nat) = Softmax
+data Softmax d = Softmax
 
--- TODO: Implement softmax Differentiable.
+type role Softmax nominal
+
 instance Differentiable (Softmax d) where
-  derivative Softmax oi os = undefined
+  -- ∂Softmax_j/∂x_k = S_j * δ_jk - S_j * S_k
+  derivative ::
+    (Dim n, Dim b) =>
+    Softmax d ->
+    V b (V n Double) ->
+    V b (V n Double) ->
+    V b (V n Double)
+  derivative Softmax _ os = dS <$> os
     where
-      singularOutput = os ^?! ix 0
-      xxx = undefined
-      dSoftmax v = undefined
+      dS :: (Dim n) => V n Double -> V n Double
+      dS sample = fmap sum $ sXδ !-! sjXsk
+        where
+          mSample = V1 sample
+          tmSample = transpose mSample
+          sjXsk = tmSample !*! mSample
+          sXδ = scaled sample
 
 instance ActivationFunction (Softmax d) where
   activation Softmax inputs =
