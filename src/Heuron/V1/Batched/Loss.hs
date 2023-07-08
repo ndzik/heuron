@@ -1,9 +1,21 @@
 module Heuron.V1.Batched.Loss where
 
 import GHC.TypeLits
+import Heuron.V1.Batched.Activation (Differentiable (..))
 import Heuron.V1.Batched.Input
+import Linear (Additive (liftI2))
 import Linear.Matrix
 import Linear.V
+
+class (Differentiable f) => Loss f where
+  -- | Calculate the loss for a given set of predictions compared to a set of
+  -- ground truths.
+  loss :: (KnownNat n, KnownNat b) => f -> (Input n b Double -> Input n b Double -> V n Double)
+
+data CategoricalCrossEntropy = CategoricalCrossEntropy
+
+instance Loss CategoricalCrossEntropy where
+  loss CategoricalCrossEntropy = categoricalCrossEntropy
 
 -- | categoricalCrossEntropy (CCE) calculates the loss for a given set of
 -- predictions compared to a set of truth values.
@@ -26,3 +38,11 @@ categoricalCrossEntropy truth prediction =
       -- diagonal, which corresponds to the calculation done for CCE.
       losses = diagonal $ truth !*! logPredictionT
    in negate <$> losses
+
+instance Differentiable CategoricalCrossEntropy where
+  derivative CategoricalCrossEntropy = dCategoricalCrossEntropy
+
+-- | The derivative of the categorical cross entropy loss function.
+-- ∂L/∂p_i = -t_i/p_i; p = prediction vector, t = truth vector, i = index
+dCategoricalCrossEntropy :: (Dim b, Dim n) => V b (V n Double) -> V b (V n Double) -> V b (V n Double)
+dCategoricalCrossEntropy = liftI2 (\t p -> negate <$> (t / p))
