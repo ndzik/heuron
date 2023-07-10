@@ -54,9 +54,6 @@ categoricalAccuracy truth prediction =
 categoricalCrossEntropy :: forall b n. (KnownNat b, KnownNat n) => Input b n Double -> Input b n Double -> Input b n Double
 categoricalCrossEntropy truth prediction =
   let logPrediction = (log <$>) <$> prediction
-      -- Doing it this way should not lead to unnecessary computation, since
-      -- Haskell is lazy and diagnoal will only evaluate the elements in the
-      -- diagonal, which corresponds to the calculation done for CCE.
       losses = mergeEntriesWith (*) truth logPrediction
    in negate <$> losses
 
