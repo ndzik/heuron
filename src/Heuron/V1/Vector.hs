@@ -5,6 +5,7 @@ module Heuron.V1.Vector where
 import Data.Vector (fromList)
 import GHC.TypeLits
 import Linear.V
+import System.Random
 
 -- | Create a Vector with dimension n from a list of values. This will fail if
 -- the given list of values does not match the dimension n. For an unsafe
@@ -34,3 +35,14 @@ mkV' :: forall n a. (KnownNat n) => [a] -> IO (V n a)
 mkV' xs = case fromVector . fromList $ xs of
   Just v -> return v
   Nothing -> error "mkVector: failed to create vector"
+
+randomV :: forall n g a. (KnownNat n, RandomGen g) => g -> (V n Double, g)
+randomV rng =
+  let (v, rng') = random rng
+   in (v, rng')
+
+randomV' :: forall n. (KnownNat n) => StdGen -> IO (V n Double)
+randomV' rng = do
+  let (v, rng') = randomV rng
+  setStdGen rng'
+  return v
