@@ -28,13 +28,16 @@ module Heuron.V1.Batched
 
     -- * Loss primitives
     LossComparator (..),
-    categoricalCrossEntropy,
+    CategoricalCrossEntropy (..),
 
     -- * Activation primitives
     ActivationFunction (..),
     Differentiable (..),
     ReLU (..),
     Softmax (..),
+
+    -- * Training primitives
+    module Heuron.V1.Batched.Trainer,
 
     -- * Layer/Network optimizers
     module Heuron.V1.Batched.Optimizer,
@@ -52,3 +55,4 @@ import Heuron.V1.Batched.Layer
 import Heuron.V1.Batched.Loss
 import Heuron.V1.Batched.Network
 import Heuron.V1.Batched.Optimizer
+import Heuron.V1.Batched.Trainer
