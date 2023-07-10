@@ -27,6 +27,7 @@ module Heuron.V1.Batched
     Forward (..),
 
     -- * Loss primitives
+    LossComparator (..),
     categoricalCrossEntropy,
 
     -- * Activation primitives
