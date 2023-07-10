@@ -40,20 +40,20 @@ oneEpoch ::
     FinalOutputOf (Network b net) ~ Input b n' Double,
     Input b n' Double ~ NextOutput (Reversed (Network b net)),
     KnownNat n,
-    KnownNat n',
-    n ~ n'
+    KnownNat n'
   ) =>
   Input b n Double ->
-  Input b n Double ->
-  Trainer b net l m ()
-runEpoch input truth = trainForward input >>= trainBackprop truth
+  Input b n' Double ->
+  Trainer b net l m Double
+oneEpoch input truth = trainForward input >>= trainBackprop truth
 
 trainForward ::
   ( TrainerConstraints b net l m,
-    InputOf (Network b net) ~ Input b n Double
+    InputOf (Network b net) ~ Input b n Double,
+    FinalOutputOf (Network b net) ~ Input b n' Double
   ) =>
   Input b n Double ->
-  Trainer b net l m (FinalOutputOf (Network b net))
+  Trainer b net l m (Input b n' Double)
 trainForward input =
   use network >>= \n -> do
     let (n', forwardResult) = forward n input
@@ -63,24 +63,28 @@ trainForward input =
 trainBackprop ::
   ( TrainerConstraints b net l m,
     KnownNat n,
-    FinalOutputOf (Network b net) ~ Input b n Double,
-    Input b n Double ~ NextOutput (Reversed (Network b net))
+    KnownNat n',
+    InputOf (Network b net) ~ Input b n Double,
+    FinalOutputOf (Network b net) ~ Input b n' Double,
+    Input b n' Double ~ NextOutput (Reversed (Network b net))
   ) =>
-  Input b n Double ->
-  Input b n Double ->
-  Trainer b net l m ()
-trainBackprop truth forwardResult =
+  Input b n' Double ->
+  Input b n' Double ->
+  Trainer b net l m Double
+trainBackprop truth forwardResult = do
   use network >>= \n -> do
     loss <- trainLoss truth forwardResult
     let n' = backprop n forwardResult loss
     network .= n'
+  trainAccuracy truth forwardResult
 
 -- | trainLoss computes the loss of the network compared to the truth for each
 -- sample in a batch.
 trainLoss ::
-  forall n n' b net l m.
+  forall n b net l m.
   ( Monad m,
     LossComparator l,
+    FinalOutputOf (Network b net) ~ Input b n Double,
     KnownNat n,
     KnownNat b
   ) =>
@@ -92,9 +96,9 @@ trainLoss truth forwardResult = use (lossifier . to (losser @_ @b @n)) <*> pure 
 -- | trainAccuracy computes the average accuracy of the network for the given
 -- batch of samples.
 trainAccuracy ::
-  forall n n' b net l m.
+  forall n b net l m.
   ( TrainerConstraints b net l m,
-    InputOf (Network b net) ~ Input b n Double,
+    FinalOutputOf (Network b net) ~ Input b n Double,
     KnownNat n
   ) =>
   Input b n Double ->
