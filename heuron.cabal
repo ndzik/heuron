@@ -95,9 +95,12 @@ test-suite heuron-test
     -- Directories containing source files.
     other-modules:  Heuron.Test.V1.Batched.BatchedSpec
                     , Heuron.Test.V1.Batched.ActivationSpec
+                    , Heuron.Test.V1.Batched.TrainerSpec
     hs-source-dirs:   tests
     default-extensions: TypeApplications
                         , DataKinds
     main-is:          Main.hs
     build-depends:    base ^>=4.14.3.0
                     , heuron
+                    , random
+                    , lens
