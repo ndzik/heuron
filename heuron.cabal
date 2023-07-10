@@ -34,6 +34,7 @@ library
                     , Heuron.V1.Batched.Input
                     , Heuron.V1.Batched.Forward
                     , Heuron.V1.Batched.Backprop
+                    , Heuron.V1.Batched.Trainer
                     , Heuron.V1.Batched.Activation
                     , Heuron.V1.Batched.Loss
                     , Heuron.V1.Batched.Layer
