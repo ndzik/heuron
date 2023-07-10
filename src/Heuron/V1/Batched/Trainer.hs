@@ -34,7 +34,7 @@ type TrainerConstraints b net l m =
     Backprop (Network b net)
   )
 
-runEpoch ::
+oneEpoch ::
   ( TrainerConstraints b net l m,
     InputOf (Network b net) ~ Input b n Double,
     FinalOutputOf (Network b net) ~ Input b n' Double,
