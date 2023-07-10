@@ -13,7 +13,7 @@ class (Differentiable f) => LossComparator f where
   -- predictions compared to a set of ground truths. Each entry in the result
   -- corresponds to the loss value for the prediction and truth at the same
   -- index.
-  losser :: (KnownNat n, KnownNat b) => f -> (Input n b Double -> Input n b Double -> Input n b Double)
+  losser :: (KnownNat b, KnownNat n) => f -> (Input b n Double -> Input b n Double -> Input b n Double)
 
 data CategoricalCrossEntropy = CategoricalCrossEntropy
 
@@ -32,7 +32,7 @@ instance LossComparator CategoricalCrossEntropy where
 -- > result -- [0.1054, 0.3567]
 --
 -- Note: The result in the example is truncated for readability.
-categoricalCrossEntropy :: (KnownNat n, KnownNat b) => Input n b Double -> Input n b Double -> Input n b Double
+categoricalCrossEntropy :: forall b n. (KnownNat b, KnownNat n) => Input b n Double -> Input b n Double -> Input b n Double
 categoricalCrossEntropy truth prediction =
   let logPrediction = (log <$>) <$> prediction
       -- Doing it this way should not lead to unnecessary computation, since
@@ -46,5 +46,5 @@ instance Differentiable CategoricalCrossEntropy where
 
 -- | The derivative of the categorical cross entropy loss function.
 -- ∂L/∂p_i = -t_i/p_i; p = prediction vector, t = truth vector, i = index
-dCategoricalCrossEntropy :: (Dim b, Dim n) => V b (V n Double) -> V b (V n Double) -> V b (V n Double)
+dCategoricalCrossEntropy :: forall b n. (Dim b, Dim n) => V b (V n Double) -> V b (V n Double) -> V b (V n Double)
 dCategoricalCrossEntropy = liftI2 (\t p -> negate <$> (t / p))
