@@ -5,7 +5,7 @@ module Heuron.V1.Batched.Layer where
 import Control.Lens
 import Linear.V
 
-type role Layer nominal nominal nominal representational representational
+type role Layer nominal nominal nominal representational nominal
 
 -- | Layers state, where n is the number of neurons and m is the number of
 -- inputs.
@@ -22,7 +22,7 @@ data Layer (b :: k) (i :: k) (n :: k) af op = Layer
     -- | The activation function used for each neuron in the layer.
     _activationFunction :: !af,
     -- | The optimizer used to adjust this layers weights and bias'.
-    _optimizerFunction :: !op
+    _optimizer :: !op
   }
 
 makeLenses ''Layer

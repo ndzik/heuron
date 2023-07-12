@@ -13,9 +13,9 @@ trainerSpec = do
   hiddenLayer <- Layer <$> randomM' @3 @4 rng <*> randomV' @3 rng <*> return zero
   outputLayer <- Layer <$> randomM' @3 @3 rng <*> randomV' @3 rng <*> return zero
   let ann =
-        inputLayer ReLU StochasticGradientDescent
-          :>: hiddenLayer ReLU StochasticGradientDescent
-            =| outputLayer Softmax StochasticGradientDescent
+        inputLayer ReLU (StochasticGradientDescent 1.0)
+          :>: hiddenLayer ReLU (StochasticGradientDescent 1.0)
+            =| outputLayer Softmax (StochasticGradientDescent 1.0)
   input <- randomM' @7 @6 rng
   truth <- randomM' @7 @3 rng
   -- TODO: Use a better type error when the construction of the nn is wrong.

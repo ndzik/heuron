@@ -1,10 +1,13 @@
 module Heuron.V1.Batched.Optimizer where
 
+import Control.Lens ((^.))
 import Data.Kind (Constraint)
 import GHC.TypeLits (KnownNat, Nat)
 import Heuron.V1.Batched.Layer
+import Linear ((*^))
 import Linear.Matrix
 import Linear.V
+import Linear.Vector ((^-^))
 
 type family CompatibleOptimizerParams a b c :: Constraint where
   CompatibleOptimizerParams (Layer b i n af op) (V n' (V i' Double)) (V n'' Double) = (i ~ i', n ~ n', n ~ n'')
@@ -24,10 +27,16 @@ class Optimizable f where
     V n Double ->
     f
 
--- TODO: Implement the SGD optimizer.
-instance Optimizable (Layer b i n af StochasticGradientDescent) where
-  optimize l dWs dBs = l
+instance (KnownNat b, KnownNat i, KnownNat n) => Optimizable (Layer b i n af StochasticGradientDescent) where
+  optimize l dWs dBs = l {_weights = newWeights, _bias = newBiases}
+    where
+      StochasticGradientDescent learningRate = l ^. optimizer
+      ws = l ^. weights
+      bs = l ^. bias
+      newWeights = ws !-! (fmap (learningRate *) <$> dWs)
+      newBiases = bs ^-^ (learningRate *^ dBs)
 
-data StochasticGradientDescent = StochasticGradientDescent
+-- | The StochasticGradientDescent optimizer with learning rate.
+newtype StochasticGradientDescent = StochasticGradientDescent Double
 
 data StochasticGradientDescentMomentum = StochasticGradientDescentMomentum

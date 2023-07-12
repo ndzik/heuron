@@ -14,4 +14,4 @@ softmaxSpec :: IO ()
 softmaxSpec = do
   samples <- mkM' @1 @3 [[0.7, 0.1, 0.2]]
   let result = derivative (Softmax @3) samples samples
-  print result
+  print "softmaxSpec"

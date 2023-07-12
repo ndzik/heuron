@@ -14,9 +14,9 @@ batchedSpec = do
   hiddenLayer <- Layer <$> mkM' @3 @3 [(+ 1) <$> [1 .. 3] | _ <- [1 .. 3]] <*> mkV' @3 [1, 2, 3] <*> return zero
   outputLayer <- Layer <$> mkM' @2 @3 [(+ 1) <$> [1 .. 3] | _ <- [1 .. 2]] <*> mkV' @2 [1, 2] <*> return zero
   let ann =
-        inputLayer ReLU StochasticGradientDescent
-          :>: hiddenLayer ReLU StochasticGradientDescent
-            =| outputLayer Softmax StochasticGradientDescent
+        inputLayer ReLU (StochasticGradientDescent 1.0)
+          :>: hiddenLayer ReLU (StochasticGradientDescent 1.0)
+            =| outputLayer Softmax (StochasticGradientDescent 1.0)
       ann' = reverseNetwork ann
   -- Batchsize of 4 with 6 inputs.
   batchedInputs <- mkM' @4 @6 [[1 .. 6] | _ <- [1 .. 4]]
