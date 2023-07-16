@@ -53,9 +53,15 @@ categoricalAccuracy truth prediction =
 -- Note: The result in the example is truncated for readability.
 categoricalCrossEntropy :: forall b n. (KnownNat b, KnownNat n) => Input b n Double -> Input b n Double -> Input b n Double
 categoricalCrossEntropy truth prediction =
-  let logPrediction = (log <$>) <$> prediction
+  let -- Clip the predicted values to avoid log(0) errors. Adding/Subtracting
+      -- tenth of a million to/from the prediction values is a hack but it
+      -- should influence the result only very little.
+      logPrediction = (log . clip tenthMillion (1 - tenthMillion) <$>) <$> prediction
       losses = mergeEntriesWith (*) truth logPrediction
    in negate <$> losses
+  where
+    tenthMillion = 1 * 10 ** (-7)
+    clip lb ub = max lb . min ub
 
 instance Differentiable CategoricalCrossEntropy where
   derivative CategoricalCrossEntropy = dCategoricalCrossEntropy
