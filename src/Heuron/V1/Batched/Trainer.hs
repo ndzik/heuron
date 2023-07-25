@@ -34,6 +34,8 @@ type TrainerConstraints b net l m =
     Backprop (Network b net)
   )
 
+-- | oneEpoch trains the network for one epoch, using the given input and
+-- expected output. Returns the accuracy of the network for the given batch.
 oneEpoch ::
   ( TrainerConstraints b net l m,
     InputOf (Network b net) ~ Input b n Double,

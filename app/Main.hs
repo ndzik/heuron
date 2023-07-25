@@ -5,50 +5,27 @@
 {-# LANGUAGE PolyKinds #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE UndecidableInstances #-}
 
 module Main where
 
-import Control.Lens
-import Control.Monad.State
-import Data.Vector (fromList)
-import Diagrams.Backend.SVG.CmdLine
-import GHC.TypeLits
-import Heuron.Functions
-import Heuron.V1
-import Heuron.V1.Single
-import Linear.Matrix
-import Linear.Metric
-import Linear.V
-import Linear.Vector
-import Plots
+import Digits
+
+pathToMNISTLabel :: FilePath
+pathToMNISTLabel = "./data/train-labels-idx1-ubyte"
+
+pathToMNISTImage :: FilePath
+pathToMNISTImage = "./data/train-images-idx3-ubyte"
 
 main :: IO ()
-main = return ()
-
-relu :: ActivationFunction
-relu = max 0
-
-neuralNet :: [Datum] -> IO ()
-neuralNet ds = do
-  input <- mapM (\d -> mkV' @2 [d ^. x, d ^. y]) ds
-
-  -- Input layer with 2 inputs and 3 neurons.
-  inputLayerWeights <- mkM' @3 @2 [[1 | _ <- [1 .. 3]] | _ <- [1 .. 2]]
-  inputLayerBias <- mkV' @3 [1 | _ <- [1 .. 3]]
-  hidden01LayerWeights <- mkM' @4 @3 undefined
-  hidden01LayerBias <- mkV' @4 undefined
-  hidden02LayerWeights <- mkM' @4 @4 undefined
-  hidden02LayerBias <- mkV' @4 undefined
-  outputLayerWeights <- mkM' @3 @4 undefined
-  outputLayerBias <- mkV' @3 undefined
-
-  let o1 = Layer inputLayerWeights inputLayerBias relu
-      o2 = Layer hidden01LayerWeights hidden01LayerBias relu
-      o3 = Layer hidden02LayerWeights hidden02LayerBias relu
-      o4 = Layer outputLayerWeights outputLayerBias relu
-      network = o1 :>: o2 :>: o3 :>: o4 :>: NetworkEnd
-      result = forward network (head input)
+main = do
+  -- TODO: Create a Stream from Image and Label files.
+  -- s <- Stream.chunk batchSize $ Stream.zip streamMNISTLabels streamMNISTImages
+  -- Stream.fold (\ann (labels, images) -> do
+  --                  (accuracy, ann) <- runTrainer (oneEpoch images labels) $ TrainerState ann CategoricalCrossEntropy
+  --                  print accuracy
+  --                  return ann
+  --               ) ann s
+  streamMNISTLabels pathToMNISTLabel
   return ()
