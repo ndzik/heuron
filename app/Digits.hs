@@ -3,42 +3,105 @@
 
 module Digits where
 
-import Control.Monad (when)
-import Control.Monad.Except (MonadError (..), runExceptT)
+import Control.Monad (unless, when)
+import Control.Monad.Except (ExceptT, MonadError (..), runExceptT)
 import Data.Bits
 import Data.ByteString as BS
 import qualified Data.ByteString as BS
 import Data.Data (Typeable)
 import Data.Functor ((<&>))
+import qualified Data.Vector as V
 import Data.Word
 import Heuron.V1.Batched
+import Linear.V
+import Streaming (MonadIO, liftIO)
 import Streaming.ByteString (ByteStream)
 import qualified Streaming.ByteString as Q
 import qualified Streaming.ByteString.Char8 as Q8
 import Streaming.Prelude (each, next, yield)
 import qualified Streaming.Prelude as S
 import System.IO
+import qualified System.IO as IO
 
-streamMNISTLabels :: FilePath -> IO ()
-streamMNISTLabels fp = withFile fp ReadMode $ \h -> do
-  (magic, raw) <- parseMagic $ Q.fromHandle h
-  when (magic /= 2049) $ error "invalid magic number"
-  (numOfItems, raw) <- parseNumOfItems raw
-  print $ "Number of Label items: " ++ show numOfItems
+data StreamingFile m a = StreamingFile
+  { sfHandle :: !Handle,
+    sfStream :: !(ByteStream m a)
+  }
+
+streamMNISTImages :: FilePath -> IO (S.Stream (S.Of (V.Vector Word8)) (ExceptT HeuronError IO) ())
+streamMNISTImages fp = do
+  h <- openFile fp ReadMode
+  (magic, raw) <- parseWord32 $ Q.fromHandle h
+  when (magic /= 2051) $ error "invalid magic number"
+  (numOfItems, raw) <- parseWord32 raw
+  print $ "Number of Image items: " ++ show numOfItems
+  (numOfRows, raw) <- parseWord32 raw
+  print $ "Number of Image rows: " ++ show numOfRows
+  (numOfColumns, raw) <- parseWord32 raw
+  print $ "Number of Image columns: " ++ show numOfColumns
+  return $ go (fromIntegral numOfRows) (fromIntegral numOfColumns) (StreamingFile h raw)
   where
-    -- TODO: Convert this to a stream. Do not use `withFile` here, we need to
-    -- keep the handle open as long as the stream is alive.
+    go :: Int -> Int -> StreamingFile (ExceptT HeuronError IO) a -> S.Stream (S.Of (V.Vector Word8)) (ExceptT HeuronError IO) ()
+    go numOfRows numOfColumns s@(StreamingFile h raw) = do
+      eof <- liftIO $ IO.hIsEOF h
+      unless eof $ do
+        (img, s') <-
+          liftIO (nextImage numOfRows numOfColumns s) >>= \case
+            Left err -> error $ show err
+            Right (img, s') -> return (img, s')
+        yield img
+        go numOfRows numOfColumns s'
 
-    parseMagic bs = do
-      runExceptT (getWord32 bs) >>= \case
-        Right (Right res) -> return res
-        Left err -> error $ show err
-        _else -> error "unexpected"
-    parseNumOfItems bs = do
-      runExceptT (getWord32 bs) >>= \case
-        Right (Right res) -> return res
-        Left err -> error $ show err
-        _else -> error "unexpected"
+    nextImage :: Int -> Int -> StreamingFile (ExceptT HeuronError IO) a -> IO (Either HeuronError (V.Vector Word8, StreamingFile (ExceptT HeuronError IO) a))
+    nextImage numOfRows numOfColumns (StreamingFile h raw) = do
+      (imgBytes, raw) <-
+        runExceptT (nextBytesN (numOfRows * numOfColumns) raw) >>= \case
+          Right (Right (bytes, raw)) -> return (bytes, raw)
+          Left err -> error $ show err
+          _else -> error "unexpected"
+      let numOfPixels = fromIntegral numOfRows * fromIntegral numOfColumns
+          img = V.generate numOfPixels $ \i -> fromIntegral $ BS.index imgBytes i
+      return $ Right (img, StreamingFile h raw)
+
+streamMNISTLabels :: FilePath -> IO (S.Stream (S.Of (V.Vector Double)) (ExceptT HeuronError IO) ())
+streamMNISTLabels fp = do
+  h <- openFile fp ReadMode
+  (magic, raw) <- parseWord32 $ Q.fromHandle h
+  when (magic /= 2049) $ error "invalid magic number"
+  (numOfItems, raw) <- parseWord32 raw
+  print $ "Number of Label items: " ++ show numOfItems
+  return $ go (fromIntegral numOfItems) (StreamingFile h raw)
+  where
+    go :: Int -> StreamingFile (ExceptT HeuronError IO) a -> S.Stream (S.Of (V.Vector Double)) (ExceptT HeuronError IO) ()
+    go numOfItems s@(StreamingFile h raw) = do
+      eof <- liftIO $ IO.hIsEOF h
+      unless eof $ do
+        (label, s') <-
+          liftIO (nextLabel s) >>= \case
+            Right (b, raw) -> return (b, raw)
+            Left err -> error $ show err
+        yield label
+        go numOfItems s'
+
+    nextLabel :: StreamingFile (ExceptT HeuronError IO) a -> IO (Either HeuronError (V.Vector Double, StreamingFile (ExceptT HeuronError IO) a))
+    nextLabel (StreamingFile h raw) = do
+      (label, raw) <-
+        runExceptT (nextByte raw) >>= \case
+          Right (Right (b, raw)) -> return (b, raw)
+          Left err -> error $ show err
+          _else -> error "unexpected"
+      -- One-Hot encoded truth vector.
+      return $ Right (V.generate 10 (\i -> if i == fromIntegral label then 1.0 else 0.0), StreamingFile h raw)
+
+parseWord32 ::
+  (Monad m) =>
+  Q.ByteStream (ExceptT HeuronError m) r ->
+  m (Word32, Q.ByteStream (ExceptT HeuronError m) r)
+parseWord32 bs = do
+  runExceptT (getWord32 bs) >>= \case
+    Right (Right res) -> return res
+    Left err -> error $ show err
+    _else -> error "unexpected"
 
 getWord32 :: (Monad m, (MonadError HeuronError m)) => ByteStream m r -> m (Either HeuronError (Word32, ByteStream m r))
 getWord32 bs = do

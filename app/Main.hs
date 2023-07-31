@@ -10,7 +10,9 @@
 
 module Main where
 
+import Control.Monad.Except (runExceptT)
 import Digits
+import qualified Streaming.Prelude as S
 
 pathToMNISTLabel :: FilePath
 pathToMNISTLabel = "./data/train-labels-idx1-ubyte"
@@ -27,5 +29,9 @@ main = do
   --                  print accuracy
   --                  return ann
   --               ) ann s
-  streamMNISTLabels pathToMNISTLabel
+  labels <- streamMNISTLabels pathToMNISTLabel
+  imgs <- streamMNISTImages pathToMNISTImage
+  let s = S.zip labels imgs
+  res <- runExceptT $ S.print $ S.take 10 s
+  print res
   return ()
