@@ -1,5 +1,9 @@
+{-# LANGUAGE DataKinds #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE RankNTypes #-}
+{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TypeApplications #-}
 
 module Digits where
 
@@ -12,6 +16,7 @@ import Data.Data (Typeable)
 import Data.Functor ((<&>))
 import qualified Data.Vector as V
 import Data.Word
+import GHC.TypeLits (KnownNat)
 import Heuron.V1.Batched
 import Linear.V
 import Streaming (MonadIO, liftIO)
@@ -28,7 +33,8 @@ data StreamingFile m a = StreamingFile
     sfStream :: !(ByteStream m a)
   }
 
-streamMNISTImages :: FilePath -> IO (S.Stream (S.Of (V.Vector Word8)) (ExceptT HeuronError IO) ())
+-- 60_000 images, 784 pixels each.
+streamMNISTImages :: forall n. (KnownNat n) => FilePath -> IO (S.Stream (S.Of (V n Double)) (ExceptT HeuronError IO) ())
 streamMNISTImages fp = do
   h <- openFile fp ReadMode
   (magic, raw) <- parseWord32 $ Q.fromHandle h
@@ -41,7 +47,7 @@ streamMNISTImages fp = do
   print $ "Number of Image columns: " ++ show numOfColumns
   return $ go (fromIntegral numOfRows) (fromIntegral numOfColumns) (StreamingFile h raw)
   where
-    go :: Int -> Int -> StreamingFile (ExceptT HeuronError IO) a -> S.Stream (S.Of (V.Vector Word8)) (ExceptT HeuronError IO) ()
+    go :: Int -> Int -> StreamingFile (ExceptT HeuronError IO) a -> S.Stream (S.Of (V n Double)) (ExceptT HeuronError IO) ()
     go numOfRows numOfColumns s@(StreamingFile h raw) = do
       eof <- liftIO $ IO.hIsEOF h
       unless eof $ do
@@ -52,7 +58,7 @@ streamMNISTImages fp = do
         yield img
         go numOfRows numOfColumns s'
 
-    nextImage :: Int -> Int -> StreamingFile (ExceptT HeuronError IO) a -> IO (Either HeuronError (V.Vector Word8, StreamingFile (ExceptT HeuronError IO) a))
+    nextImage :: Int -> Int -> StreamingFile (ExceptT HeuronError IO) a -> IO (Either HeuronError (V n Double, StreamingFile (ExceptT HeuronError IO) a))
     nextImage numOfRows numOfColumns (StreamingFile h raw) = do
       (imgBytes, raw) <-
         runExceptT (nextBytesN (numOfRows * numOfColumns) raw) >>= \case
@@ -60,10 +66,13 @@ streamMNISTImages fp = do
           Left err -> error $ show err
           _else -> error "unexpected"
       let numOfPixels = fromIntegral numOfRows * fromIntegral numOfColumns
-          img = V.generate numOfPixels $ \i -> fromIntegral $ BS.index imgBytes i
+          img = fromVector' @n $
+            V.generate numOfPixels $
+              -- Normalize the pixel values to [0, 1].
+              \i -> let pixelVal = fromIntegral (BS.index imgBytes i) in pixelVal / 255
       return $ Right (img, StreamingFile h raw)
 
-streamMNISTLabels :: FilePath -> IO (S.Stream (S.Of (V.Vector Double)) (ExceptT HeuronError IO) ())
+streamMNISTLabels :: FilePath -> IO (S.Stream (S.Of (V 10 Double)) (ExceptT HeuronError IO) ())
 streamMNISTLabels fp = do
   h <- openFile fp ReadMode
   (magic, raw) <- parseWord32 $ Q.fromHandle h
@@ -72,7 +81,7 @@ streamMNISTLabels fp = do
   print $ "Number of Label items: " ++ show numOfItems
   return $ go (fromIntegral numOfItems) (StreamingFile h raw)
   where
-    go :: Int -> StreamingFile (ExceptT HeuronError IO) a -> S.Stream (S.Of (V.Vector Double)) (ExceptT HeuronError IO) ()
+    go :: Int -> StreamingFile (ExceptT HeuronError IO) a -> S.Stream (S.Of (V 10 Double)) (ExceptT HeuronError IO) ()
     go numOfItems s@(StreamingFile h raw) = do
       eof <- liftIO $ IO.hIsEOF h
       unless eof $ do
@@ -83,7 +92,7 @@ streamMNISTLabels fp = do
         yield label
         go numOfItems s'
 
-    nextLabel :: StreamingFile (ExceptT HeuronError IO) a -> IO (Either HeuronError (V.Vector Double, StreamingFile (ExceptT HeuronError IO) a))
+    nextLabel :: StreamingFile (ExceptT HeuronError IO) a -> IO (Either HeuronError (V 10 Double, StreamingFile (ExceptT HeuronError IO) a))
     nextLabel (StreamingFile h raw) = do
       (label, raw) <-
         runExceptT (nextByte raw) >>= \case
@@ -91,7 +100,12 @@ streamMNISTLabels fp = do
           Left err -> error $ show err
           _else -> error "unexpected"
       -- One-Hot encoded truth vector.
-      return $ Right (V.generate 10 (\i -> if i == fromIntegral label then 1.0 else 0.0), StreamingFile h raw)
+      return $ Right ((fromVector' @10) $ V.generate 10 (\i -> if i == fromIntegral label then 1.0 else 0.0), StreamingFile h raw)
+
+fromVector' :: forall n a. (KnownNat n) => V.Vector a -> V n a
+fromVector' v = case fromVector v of
+  Nothing -> error "fromVector' failed"
+  Just v' -> v'
 
 parseWord32 ::
   (Monad m) =>

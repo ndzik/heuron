@@ -87,6 +87,7 @@ executable heuron
         vector,
         streaming,
         streaming-bytestring,
+        random,
         mtl,
         linear
 
