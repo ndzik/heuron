@@ -20,7 +20,7 @@ import Prelude hiding (zip)
 
 class Differentiable a where
   derivative ::
-    (Dim b, Dim n) =>
+    (KnownNat b, KnownNat n, Dim b, Dim n) =>
     -- | Datatype implementing the Differentiable instance.
     a ->
     -- | Derivation function:
@@ -75,7 +75,8 @@ instance Differentiable (Softmax d) where
 
 instance ActivationFunction (Softmax d) where
   activation Softmax inputs =
-    let expInputs = (exp <$>) <$> inputs
+    let maxInput = maximum $ maximum <$> inputs
+        expInputs = ((\v -> exp (v - maxInput)) <$>) <$> inputs
         sumExpInputs = sum <$> expInputs
         normalizeRow ei v = (/ ei) <$> v
         normalizedActivation = liftI2 normalizeRow sumExpInputs expInputs
