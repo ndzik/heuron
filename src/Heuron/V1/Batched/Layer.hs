@@ -3,7 +3,9 @@
 module Heuron.V1.Batched.Layer where
 
 import Control.Lens
+import Data.Foldable
 import Linear.V
+import Text.Printf (printf)
 
 type role Layer nominal nominal nominal representational nominal
 
@@ -24,5 +26,12 @@ data Layer (b :: k) (i :: k) (n :: k) af op = Layer
     -- | The optimizer used to adjust this layers weights and bias'.
     _optimizer :: !op
   }
+
+instance Show (Layer b i n af op) where
+  show (Layer w b c _ _) = printf "Weights:\n%s\nBias:\n%s\nCached Input:%s" ws bs ci
+    where
+      ws = unlines . map show . toList . toVector $ toList . toVector <$> w
+      bs = show . toList . toVector $ b
+      ci = unlines . map show . toList . toVector $ toList . toVector <$> c
 
 makeLenses ''Layer
