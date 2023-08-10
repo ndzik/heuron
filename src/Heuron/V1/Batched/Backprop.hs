@@ -119,13 +119,14 @@ backpropLayer ::
   -- previous layer.
   (Layer b i n af op, Input b i Double)
 backpropLayer l originalOutput prevGradients =
-  let dActivation = l ^. activationFunction . to derivative
+  let activation = l ^. activationFunction
+      dActivation = derivative activation
       ws = l ^. weights
       is = l ^. input
       bs = l ^. bias
       weightedInput = (is !*! transpose ws) <&> (+ bs)
       activated = dActivation weightedInput originalOutput
-      gradients = mergeEntriesWith (*) activated prevGradients
+      gradients = backpropagate activation activated prevGradients
    in -- Influence of the inputs to this layer on the output of this layer.
       --
       -- Example:

@@ -27,19 +27,20 @@ library
     exposed-modules:  Heuron.V1
                     , Heuron.Functions
                     , Heuron.V1.Batched
-                    , Heuron.V1.Single
-
-    -- Modules included in this library but not exported.
-    other-modules:    Heuron.V1.Batched.Network
+                    , Heuron.V1.Batched.Network
                     , Heuron.V1.Batched.Input
                     , Heuron.V1.Batched.Forward
                     , Heuron.V1.Batched.Backprop
                     , Heuron.V1.Batched.Trainer
                     , Heuron.V1.Batched.Activation
+                    , Heuron.V1.Batched.Activation.Function
                     , Heuron.V1.Batched.Loss
                     , Heuron.V1.Batched.Layer
                     , Heuron.V1.Batched.Optimizer
-                    , Heuron.V1.Single.Network
+                    , Heuron.V1.Single
+
+    -- Modules included in this library but not exported.
+    other-modules:    Heuron.V1.Single.Network
                     , Heuron.V1.Matrix
                     , Heuron.V1.Vector
 
