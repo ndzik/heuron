@@ -9,6 +9,7 @@ import Heuron.V1.Batched.Input
 import Linear (Additive (liftI2))
 import Linear.Matrix
 import Linear.V
+import Linear.Vector ((*^))
 
 class (Differentiable f) => LossComparator f where
   -- | Return the loss function which calculates the loss for a given set of
@@ -33,9 +34,10 @@ instance LossComparator CategoricalCrossEntropy where
 -- compared to a set of truth values.
 categoricalAccuracy :: forall b n. (KnownNat b, KnownNat n) => Input b n Double -> Input b n Double -> Double
 categoricalAccuracy truth prediction =
-  let correctPredictions = liftI2 matchingPrediction truth prediction
-      numOfCorrectPredictions = foldr (\p acc -> if p then acc + 1 else acc) 0 correctPredictions
-   in numOfCorrectPredictions / fromIntegral (natVal (Proxy @b))
+  let batchSize = fromIntegral $ natVal (Proxy @b)
+      correctPredictions = liftI2 matchingPrediction truth prediction
+      numOfCorrectPredictions = fromIntegral $ foldr (\p acc -> if p then acc + 1 else acc) 0 correctPredictions
+   in numOfCorrectPredictions / batchSize
   where
     matchingPrediction t p = (maxIndex . toVector $ t) == (maxIndex . toVector $ p)
 
@@ -68,5 +70,8 @@ instance Differentiable CategoricalCrossEntropy where
 
 -- | The derivative of the categorical cross entropy loss function.
 -- ∂L/∂p_i = -t_i/p_i; p = prediction vector, t = truth vector, i = index
-dCategoricalCrossEntropy :: forall b n. (Dim b, Dim n) => V b (V n Double) -> V b (V n Double) -> V b (V n Double)
-dCategoricalCrossEntropy = liftI2 (\t p -> negate <$> (t / p))
+dCategoricalCrossEntropy :: forall b n. (KnownNat b, Dim b, Dim n) => V b (V n Double) -> V b (V n Double) -> V b (V n Double)
+dCategoricalCrossEntropy truths predictions =
+  let samples = fromIntegral $ natVal (Proxy @b)
+      gradients = liftI2 (liftI2 (\t p -> if t == 0 || p == 0 then 0 else negate $ t / p)) truths predictions
+   in gradients

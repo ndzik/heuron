@@ -103,6 +103,7 @@ test-suite heuron-test
     other-modules:  Heuron.Test.V1.Batched.BatchedSpec
                     , Heuron.Test.V1.Batched.ActivationSpec
                     , Heuron.Test.V1.Batched.TrainerSpec
+                    , Heuron.Test.V1.Batched.LossSpec
     hs-source-dirs:   tests
     default-extensions: TypeApplications
                         , DataKinds
@@ -111,3 +112,5 @@ test-suite heuron-test
                     , heuron
                     , random
                     , lens
+                    , linear
+                    , vector
