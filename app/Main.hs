@@ -12,6 +12,7 @@
 
 module Main where
 
+import Control.Lens
 import Control.Monad.Except (ExceptT, runExceptT)
 import Data.Data (Proxy (..))
 import Data.Functor ((<&>))
@@ -26,6 +27,7 @@ import Streaming (liftIO)
 import qualified Streaming as S
 import qualified Streaming.Prelude as S
 import System.Random (getStdGen)
+import Text.Printf (printf)
 
 pathToMNISTLabel :: FilePath
 pathToMNISTLabel = "./data/train-labels-idx1-ubyte"
@@ -33,59 +35,74 @@ pathToMNISTLabel = "./data/train-labels-idx1-ubyte"
 pathToMNISTImage :: FilePath
 pathToMNISTImage = "./data/train-images-idx3-ubyte"
 
-main :: forall pixelCount batchSize numOfImages. (pixelCount ~ 784, batchSize ~ 100, numOfImages ~ 60000) => IO ()
+scaledBy :: (KnownNat n, KnownNat m) => Double -> Input n m Double -> Input n m Double
+scaledBy x = fmap (fmap (* x))
+
+main :: forall pixelCount batchSize numOfImages hiddenNeuronCount. (hiddenNeuronCount ~ 32, pixelCount ~ 784, batchSize ~ 100, numOfImages ~ 60000) => IO ()
 main = do
   -- Describe network.
   rng <- getStdGen
-  inputLayer <- Layer <$> randomM' @pixelCount @pixelCount rng <*> randomV' @pixelCount rng <*> return zero
-  hiddenLayer00 <- Layer <$> randomM' @1024 @pixelCount rng <*> randomV' @1024 rng <*> return zero
-  hiddenLayer01 <- Layer <$> randomM' @1024 @1024 rng <*> randomV' @1024 rng <*> return zero
-  hiddenLayer02 <- Layer <$> randomM' @1024 @1024 rng <*> randomV' @1024 rng <*> return zero
-  outputLayer <- Layer <$> randomM' @10 @1024 rng <*> randomV' @10 rng <*> return zero
-  let ann =
-        inputLayer ReLU (StochasticGradientDescent 1.0)
-          :>: hiddenLayer00 ReLU (StochasticGradientDescent 1.0)
-          :>: hiddenLayer01 ReLU (StochasticGradientDescent 1.0)
-          :>: hiddenLayer02 ReLU (StochasticGradientDescent 1.0)
-            =| outputLayer Softmax (StochasticGradientDescent 1.0)
+  inputLayer <- Layer <$> (scaledBy (1 / 784) <$> randomM' @hiddenNeuronCount @pixelCount rng) <*> randomV' @hiddenNeuronCount rng <*> return zero
+  hiddenLayer00 <- Layer <$> (scaledBy (1 / 32) <$> randomM' @hiddenNeuronCount @hiddenNeuronCount rng) <*> randomV' @hiddenNeuronCount rng <*> return zero
+  hiddenLayer01 <- Layer <$> (scaledBy (1 / 32) <$> randomM' @hiddenNeuronCount @hiddenNeuronCount rng) <*> randomV' @hiddenNeuronCount rng <*> return zero
+  outputLayer <- Layer <$> randomM' @10 @hiddenNeuronCount rng <*> randomV' @10 rng <*> return zero
+  let learningRate = 0.001
+      ann =
+        inputLayer ReLU (StochasticGradientDescent learningRate)
+          :>: hiddenLayer00 ReLU (StochasticGradientDescent learningRate)
+          :>: hiddenLayer01 ReLU (StochasticGradientDescent learningRate)
+            =| outputLayer Softmax (StochasticGradientDescent learningRate)
+      initialTrainerState = TrainerState ann CategoricalCrossEntropy
 
   -- Train network.
   labels <- streamMNISTLabels pathToMNISTLabel
   imgs <- streamMNISTImages @pixelCount pathToMNISTImage
-  let s = streamOfSize @batchSize $ S.zip labels imgs
+  let onlyThree (label, _) = label ^?! ix 2 == 1
+      s = streamOfSize @batchSize $ S.zip labels imgs
 
   print "Starting training..."
-  _res <-
-    runExceptT $
-      S.foldM_
-        ( \ts (labels, images) -> do
-            (accuracy, ts') <- runTrainer (oneEpoch images labels) ts
-            liftIO $ print accuracy
-            return ts'
-        )
-        (pure $ TrainerState ann CategoricalCrossEntropy)
-        pure
-        $ S.take 10 s
+  _res <- runExceptT $ S.foldM_ trainNetwork (pure initialTrainerState) pure s
   print "Done training."
-  return ()
+  where
+    forwardNetwork ts (labels, images) = do
+      (prediction, ts') <- liftIO $ runTrainer (trainForward images) ts
+      liftIO . putStrLn $ printf "Network:\n%s" (show $ _network ts')
+      liftIO . putStrLn $ printf "Prediction: %s" (show prediction)
+      return ts'
+    trainNetwork ts (labels, images) = do
+      (accuracy, ts') <- liftIO $ runTrainer (oneEpoch images labels) ts
+      liftIO . putStrLn $ printf "Accuracy: %.2f" accuracy
+      return ts'
+
+streamOfSizeFiltered ::
+  forall b.
+  (KnownNat b) =>
+  ((V 10 Double, V 784 Double) -> Bool) ->
+  S.Stream (S.Of (V 10 Double, V 784 Double)) (ExceptT HeuronError IO) () ->
+  S.Stream (S.Of (Input b 10 Double, Input b 784 Double)) (ExceptT HeuronError IO) ()
+streamOfSizeFiltered f s =
+  let batchSize = fromIntegral $ natVal (Proxy @b)
+      substreams = S.chunksOf batchSize . S.filter f $ s
+   in S.mapsM collapseSubstreams substreams
+  where
+    collapseSubstreams ::
+      S.Stream
+        (S.Of (V 10 Double, V 784 Double))
+        (ExceptT HeuronError IO)
+        x ->
+      ExceptT HeuronError IO (S.Of (V b (V 10 Double), V b (V 784 Double)) x)
+    collapseSubstreams substream = do
+      labelsAndImages <- S.toList substream
+      let collapsed = S.mapOf (S.bimap (mkV'' @b) (mkV'' @b) . unzip) labelsAndImages
+      return collapsed
+    mkV'' :: forall b a. (KnownNat b) => [a] -> V b a
+    mkV'' as = case mkV @b as of
+      Nothing -> error "mkV''"
+      Just v -> v
 
 streamOfSize ::
   forall b.
   (KnownNat b) =>
   S.Stream (S.Of (V 10 Double, V 784 Double)) (ExceptT HeuronError IO) () ->
   S.Stream (S.Of (Input b 10 Double, Input b 784 Double)) (ExceptT HeuronError IO) ()
-streamOfSize s =
-  let batchSize = fromIntegral $ natVal (Proxy @b)
-      substreams = S.chunksOf batchSize s
-   in S.mapsM
-        ( \substream -> do
-            labelsAndImages <- S.toList substream
-            let collapsed = S.mapOf (S.bimap (mkV'' @b) (mkV'' @b) . unzip) labelsAndImages
-            return collapsed
-        )
-        substreams
-  where
-    mkV'' :: forall b a. (KnownNat b) => [a] -> V b a
-    mkV'' as = case mkV @b as of
-      Nothing -> error "mkV''"
-      Just v -> v
+streamOfSize = streamOfSizeFiltered @b (const True)
