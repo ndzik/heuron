@@ -46,7 +46,7 @@ main = do
   hiddenLayer00 <- Layer <$> (scaledBy (1 / 32) <$> randomM' @hiddenNeuronCount @hiddenNeuronCount rng) <*> randomV' @hiddenNeuronCount rng <*> return zero
   hiddenLayer01 <- Layer <$> (scaledBy (1 / 32) <$> randomM' @hiddenNeuronCount @hiddenNeuronCount rng) <*> randomV' @hiddenNeuronCount rng <*> return zero
   outputLayer <- Layer <$> randomM' @10 @hiddenNeuronCount rng <*> randomV' @10 rng <*> return zero
-  let learningRate = 0.001
+  let learningRate = 0.25
       ann =
         inputLayer ReLU (StochasticGradientDescent learningRate)
           :>: hiddenLayer00 ReLU (StochasticGradientDescent learningRate)
@@ -61,18 +61,19 @@ main = do
       s = streamOfSize @batchSize $ S.zip labels imgs
 
   print "Starting training..."
-  _res <- runExceptT $ S.foldM_ trainNetwork (pure initialTrainerState) pure s
+  _res <- runExceptT $ S.foldM_ trainNetwork (pure (initialTrainerState, 0)) pure s
   print "Done training."
   where
-    forwardNetwork ts (labels, images) = do
+    maxEpochs = natVal (Proxy @numOfImages) `div` natVal (Proxy @batchSize)
+    forwardNetwork (ts, epoch) (labels, images) = do
       (prediction, ts') <- liftIO $ runTrainer (trainForward images) ts
       liftIO . putStrLn $ printf "Network:\n%s" (show $ _network ts')
       liftIO . putStrLn $ printf "Prediction: %s" (show prediction)
-      return ts'
-    trainNetwork ts (labels, images) = do
+      return (ts', epoch + 1)
+    trainNetwork (ts, epoch) (labels, images) = do
       (accuracy, ts') <- liftIO $ runTrainer (oneEpoch images labels) ts
-      liftIO . putStrLn $ printf "Accuracy: %.2f" accuracy
-      return ts'
+      liftIO . putStrLn $ printf "Epoch %3d/%d - Accuracy: %.2f" (epoch :: Integer) maxEpochs accuracy
+      return (ts', epoch + 1)
 
 streamOfSizeFiltered ::
   forall b.
