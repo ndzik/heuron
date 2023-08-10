@@ -5,9 +5,11 @@
 module Heuron.V1.Matrix where
 
 import Control.Monad (join)
+import Data.Foldable (Foldable (toList))
 import GHC.TypeLits
 import Heuron.V1.Vector
 import Linear.V
+import System.Random (Random (random, randomR), RandomGen, StdGen, setStdGen)
 
 -- | Creates a matrix with dimension n x m from a list of lists of values. This
 -- will fail if the given list of lists of values does not match the dimension
@@ -40,3 +42,19 @@ mkM = join . mapM (mkV @n) . mapM (mkV @m)
 -- @
 mkM' :: forall n m. (KnownNat n, KnownNat m) => [[Double]] -> IO (V n (V m Double))
 mkM' xs = mapM (mkV' @m) xs >>= mkV' @n
+
+randomM :: forall n m g. (KnownNat n, KnownNat m, RandomGen g) => g -> (V n (V m Double), g)
+randomM rng =
+  let (v, rng') = random rng
+   in (v, rng')
+
+-- | Creates a matrix with dimension n x m from a list of lists of values. This
+-- will overwrite the global standard random generator.
+randomM' :: forall n m. (KnownNat n, KnownNat m) => StdGen -> IO (V n (V m Double))
+randomM' rng = do
+  let (m, rng') = randomM rng
+  setStdGen rng'
+  return m
+
+prettyMatrix :: V n (V m Double) -> String
+prettyMatrix = unlines . toList . fmap (show . toList)

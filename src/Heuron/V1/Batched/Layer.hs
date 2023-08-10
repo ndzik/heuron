@@ -3,9 +3,13 @@
 module Heuron.V1.Batched.Layer where
 
 import Control.Lens
+import Data.Foldable
+import Heuron.V1.Matrix (prettyMatrix)
+import Heuron.V1.Vector (prettyVector)
 import Linear.V
+import Text.Printf (printf)
 
-type role Layer nominal nominal nominal representational representational
+type role Layer nominal nominal nominal representational nominal
 
 -- | Layers state, where n is the number of neurons and m is the number of
 -- inputs.
@@ -22,7 +26,14 @@ data Layer (b :: k) (i :: k) (n :: k) af op = Layer
     -- | The activation function used for each neuron in the layer.
     _activationFunction :: !af,
     -- | The optimizer used to adjust this layers weights and bias'.
-    _optimizerFunction :: !op
+    _optimizer :: !op
   }
+
+instance Show (Layer b i n af op) where
+  show (Layer w b c _ _) = printf "Weights:\n%s\nBias:\n%s\nCached Input:%s" ws bs ci
+    where
+      ws = prettyMatrix w
+      bs = prettyVector b
+      ci = prettyMatrix c
 
 makeLenses ''Layer

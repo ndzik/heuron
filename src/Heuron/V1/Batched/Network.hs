@@ -30,6 +30,14 @@ data Network (b :: Nat) as where
   NetworkEnd :: Network b '[]
   (:>:) :: () => a -> Network b as -> Network b (a ': as)
 
+type family Showable as :: Constraint where
+  Showable '[] = ()
+  Showable (a:as) = (Show a, Showable as)
+
+instance (Showable net) => Show (Network b net) where
+  show NetworkEnd = "=|"
+  show (a :>: as) = unlines [show a ,":>:" ,show as]
+
 infixr 5 :>:
 
 infixr 5 =|
