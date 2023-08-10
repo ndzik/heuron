@@ -4,6 +4,8 @@ module Heuron.V1.Batched.Layer where
 
 import Control.Lens
 import Data.Foldable
+import Heuron.V1.Matrix (prettyMatrix)
+import Heuron.V1.Vector (prettyVector)
 import Linear.V
 import Text.Printf (printf)
 
@@ -30,8 +32,8 @@ data Layer (b :: k) (i :: k) (n :: k) af op = Layer
 instance Show (Layer b i n af op) where
   show (Layer w b c _ _) = printf "Weights:\n%s\nBias:\n%s\nCached Input:%s" ws bs ci
     where
-      ws = unlines . map show . toList . toVector $ toList . toVector <$> w
-      bs = show . toList . toVector $ b
-      ci = unlines . map show . toList . toVector $ toList . toVector <$> c
+      ws = prettyMatrix w
+      bs = prettyVector b
+      ci = prettyMatrix c
 
 makeLenses ''Layer

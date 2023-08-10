@@ -2,6 +2,7 @@
 
 module Heuron.V1.Vector where
 
+import Data.Foldable
 import Data.Vector (fromList)
 import GHC.TypeLits
 import Linear.V
@@ -46,3 +47,6 @@ randomV' rng = do
   let (v, rng') = randomV rng
   setStdGen rng'
   return v
+
+prettyVector :: V n Double -> String
+prettyVector = unlines . map show . toList

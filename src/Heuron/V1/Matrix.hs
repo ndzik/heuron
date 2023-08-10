@@ -5,6 +5,7 @@
 module Heuron.V1.Matrix where
 
 import Control.Monad (join)
+import Data.Foldable (Foldable (toList))
 import GHC.TypeLits
 import Heuron.V1.Vector
 import Linear.V
@@ -54,3 +55,6 @@ randomM' rng = do
   let (m, rng') = randomM rng
   setStdGen rng'
   return m
+
+prettyMatrix :: V n (V m Double) -> String
+prettyMatrix = unlines . toList . fmap (show . toList)
