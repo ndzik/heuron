@@ -51,6 +51,33 @@ If the typeclasses are not implemented or the network description does not
 adhere to certain constraints which guarantee correct networks, the compiler
 will tell you something is wrong.
 
+### Heuron.V1 - MNIST handwritten digits example
+
+The executable defined by default uses the training set from the [MNIST database for handwritten digits](http://yann.lecun.com/exdb/mnist/).
+Downloading the database and placing the training set in a `data/` folder within the directory
+where `heuron` is started, will train a simple ANN on said dataset. This is a practical example
+of `Heuron.V1` usage.
+
+The network defined is of the following type:
+
+```haskell
+ann :: Network
+  batchSize
+  '[Layer 100 pixelCount        hiddenNeuronCount ReLU    StochasticGradientDescent,
+    Layer 100 hiddenNeuronCount hiddenNeuronCount ReLU    StochasticGradientDescent,
+    Layer 100 hiddenNeuronCount hiddenNeuronCount ReLU    StochasticGradientDescent,
+    Layer 100 hiddenNeuronCount 10                Softmax StochasticGradientDescent]
+```
+
+An ANN with a batchSize of `100`, an input layer expecting `pixelCount` inputs
+containing `hiddenNeuronCount` neurons, using `ReLU` as its activation function
+and `StochasticGradientDescent` as an optimizer.
+The ANN has two hidden layers expecting `hiddenNeuronCount` inputs and containing `hiddenNeuronCount`
+neurons using the `ReLU` activation function and `StochasticGradientDescent` as an optimizer.
+The output layer expects `hiddenNeuronCount` inputs and contains `10` neurons using the
+`Softmax` activation function to finally classify each digit, also using `StochasticGradientDescent`
+as its optimizer.
+
 ## Heuron.V2
 
 With my experience from implementing V1 I want to generalize the created interfaces and make
