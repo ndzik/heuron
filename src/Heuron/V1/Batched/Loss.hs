@@ -74,4 +74,4 @@ dCategoricalCrossEntropy :: forall b n. (KnownNat b, Dim b, Dim n) => V b (V n D
 dCategoricalCrossEntropy truths predictions =
   let samples = fromIntegral $ natVal (Proxy @b)
       gradients = liftI2 (liftI2 (\t p -> if t == 0 || p == 0 then 0 else negate $ t / p)) truths predictions
-   in gradients
+   in fmap (/ samples) <$> gradients
