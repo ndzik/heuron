@@ -48,6 +48,6 @@ trainerSpec = do
   (accuracy, s) <- runTrainer (oneEpoch input truth) $ TrainerState ann CategoricalCrossEntropy
   -- TODO: Add some visualization helpers for networks.
   print "trainerSpec"
-  putStrLn $ printf "Accuracy: %.2f" accuracy
+  putStrLn $ printf "Accuracy: %.2f" $ show accuracy
   print "Network:"
   print $ s ^. network
