@@ -24,7 +24,7 @@ class (Differentiable f) => LossComparator f where
   -- batch of samples.
   accurator :: (KnownNat b, KnownNat n) => f -> (Input b n Double -> Input b n Double -> Double)
 
-data CategoricalCrossEntropy = CategoricalCrossEntropy
+data CategoricalCrossEntropy = CategoricalCrossEntropy deriving (Show, Eq)
 
 instance LossComparator CategoricalCrossEntropy where
   losser CategoricalCrossEntropy = categoricalCrossEntropy
