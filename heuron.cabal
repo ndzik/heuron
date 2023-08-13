@@ -66,6 +66,7 @@ library
                     , vector
                     , streaming
                     , streaming-bytestring
+                    , serialise
     hs-source-dirs:   src
     default-language: Haskell2010
 
@@ -92,7 +93,13 @@ executable heuron
         streaming-bytestring,
         random,
         mtl,
-        linear
+        linear,
+        serialise,
+        OpenGLRaw,
+        data-default,
+        loop,
+        text,
+        monomer
 
     hs-source-dirs:   app
     default-language: Haskell2010
