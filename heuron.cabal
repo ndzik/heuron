@@ -37,6 +37,8 @@ library
                     , Heuron.V1.Batched.Loss
                     , Heuron.V1.Batched.Layer
                     , Heuron.V1.Batched.Optimizer
+                    , Heuron.V1.Batched.Optimizer.Function
+                    , Heuron.V1.Batched.Optimizer.Types
                     , Heuron.V1.Single
 
     -- Modules included in this library but not exported.
