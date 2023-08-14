@@ -36,6 +36,8 @@ library
                     , Heuron.V1.Batched.Activation.Function
                     , Heuron.V1.Batched.Loss
                     , Heuron.V1.Batched.Layer
+                    , Heuron.V1.Batched.Layer.Layer
+                    , Heuron.V1.Batched.Layer.Builder
                     , Heuron.V1.Batched.Optimizer
                     , Heuron.V1.Batched.Optimizer.Function
                     , Heuron.V1.Batched.Optimizer.Types
