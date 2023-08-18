@@ -1,22 +1,22 @@
-{-# LANGUAGE UndecidableInstances #-}
 {-# LANGUAGE InstanceSigs #-}
+{-# LANGUAGE UndecidableInstances #-}
 
 module Heuron.V1.Batched.Network where
 
+import Codec.Serialise
+import Codec.Serialise.Decoding
+import Codec.Serialise.Encoding
+import Control.Lens
+import Data.Data (Proxy (..))
 import Data.Kind (Constraint)
+import Data.Vector (Vector)
 import GHC.TypeLits
 import Heuron.V1.Batched.Activation
-import Control.Lens
 import Heuron.V1.Batched.Input
 import Heuron.V1.Batched.Layer
 import Linear.Matrix
 import Linear.V
 import Linear.Vector
-import Codec.Serialise
-import Codec.Serialise.Encoding
-import Codec.Serialise.Decoding
-import Data.Vector (Vector)
-import Data.Data (Proxy(..))
 
 -- | Network is an abstract definition of an artifical neural net. The batch
 -- size for training is statically determined and given by its first
@@ -39,11 +39,11 @@ data Network (b :: Nat) as where
 
 type family Showable as :: Constraint where
   Showable '[] = ()
-  Showable (a:as) = (Show a, Showable as)
+  Showable (a : as) = (Show a, Showable as)
 
 instance (Showable net) => Show (Network b net) where
   show NetworkEnd = "=|"
-  show (a :>: as) = unlines [show a ,":>:" ,show as]
+  show (a :>: as) = unlines [show a, ":>:", show as]
 
 type family ComparableNetwork net :: Constraint where
   ComparableNetwork '[] = ()
@@ -75,16 +75,33 @@ infixr 5 :>:
 infixr 5 =|
 
 -- | (=|) is a used as a combinator to construct the output layer of a network.
-(=|) ::(
-  KnownNat i, KnownNat n, KnownNat c, KnownNat i', KnownNat n',
-  a ~ Layer c i n af op, b ~ Layer c i' n' af' op') => a -> b -> Network c '[a, b]
+(=|) ::
+  ( KnownNat i,
+    KnownNat n,
+    KnownNat c,
+    KnownNat i',
+    KnownNat n',
+    a ~ Layer c i n af op,
+    b ~ Layer c i' n' af' op'
+  ) =>
+  a ->
+  b ->
+  Network c '[a, b]
 (=|) = networkEnd
 
 -- | networkEnd is a used as a combinator to construct a network.
-networkEnd :: (
-  KnownNat i, KnownNat n, KnownNat c, KnownNat i', KnownNat n',
-  a ~ Layer c i n af op, b ~ Layer c i' n' af' op')
-    => a  -> b -> Network c '[a, b]
+networkEnd ::
+  ( KnownNat i,
+    KnownNat n,
+    KnownNat c,
+    KnownNat i',
+    KnownNat n',
+    a ~ Layer c i n af op,
+    b ~ Layer c i' n' af' op'
+  ) =>
+  a ->
+  b ->
+  Network c '[a, b]
 networkEnd a b = a :>: b :>: NetworkEnd
 
 type family InputOf a where
@@ -148,16 +165,21 @@ reverseNetwork nn = reverse' nn NetworkEnd
     reverse' (l :>: ls) acc = reverse' ls (l :>: acc)
 
 class IteratableNetwork n where
-  forLayerIn :: (Monoid a) => n
-                -- | The function to apply to each layer:
-                --  (batch size, input dimension, number of neurons) -> weights -> bias -> a
-             -> ((Int, Int, Int) -> Vector (Vector Double) -> Vector Double -> a) -> a
+  forLayerIn ::
+    (Monoid a) =>
+    n ->
+    -- | The function to apply to each layer:
+    --  (batch size, input dimension, number of neurons) -> weights -> bias -> a
+    ((Int, Int, Int) -> Vector (Vector Double) -> Vector Double -> a) ->
+    a
 
 instance IteratableNetwork (Network b '[]) where
   forLayerIn NetworkEnd _ = mempty
 
 instance (KnownNat b, KnownNat i, KnownNat n, IteratableNetwork (Network b ls)) => IteratableNetwork (Network b (Layer b i n af op ': ls)) where
-  forLayerIn (l :>: ls) f = f
-    (fromIntegral $ natVal (Proxy @b), fromIntegral $ natVal (Proxy @i), fromIntegral $ natVal (Proxy @n))
-    (l ^. weights . to (toVector . fmap toVector))
-    (l ^. bias . to toVector) <> forLayerIn ls f
+  forLayerIn (l :>: ls) f =
+    f
+      (fromIntegral $ natVal (Proxy @b), fromIntegral $ natVal (Proxy @i), fromIntegral $ natVal (Proxy @n))
+      (l ^. weights . to (toVector . fmap toVector))
+      (l ^. bias . to toVector)
+      <> forLayerIn ls f
