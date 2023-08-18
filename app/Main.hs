@@ -79,6 +79,9 @@ main = do
         [ appWindowTitle "Heuron",
           appTheme darkTheme,
           appScaleFactor 1.5,
+          appFontDef
+            "Regular"
+            "./resources/Hasklig-Regular.otf",
           appInitEvent HeuronInit
         ]
       model =
