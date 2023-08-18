@@ -25,12 +25,14 @@ import GHC.TypeNats (KnownNat)
 import Heuron.Functions
 import Heuron.V1
 import Heuron.V1.Batched
+import Heuron.V1.Batched.Layer
 import Linear.V
 import Monomer
 import Streaming (liftIO)
 import qualified Streaming as S
 import qualified Streaming.Prelude as S
-import System.Random (getStdGen)
+import System.Random (getStdGen, mkStdGen)
+import System.Random.Stateful (StateGenM (StateGenM), globalStdGen, newIOGenM)
 import Text.Printf (printf)
 import Types
 import View
@@ -46,29 +48,36 @@ scaledBy x = fmap (fmap (* x))
 
 main :: forall pixelCount batchSize numOfImages hiddenNeuronCount. (hiddenNeuronCount ~ 32, pixelCount ~ 784, batchSize ~ 100, numOfImages ~ 57321) => IO ()
 main = do
+  rng <- newIOGenM (mkStdGen 42069)
+
   -- Describe network.
-  rng <- getStdGen
-  inputLayer <- Layer <$> (scaledBy (1 / 784) <$> randomM' @hiddenNeuronCount @pixelCount rng) <*> randomV' @hiddenNeuronCount rng <*> return zero
-  hiddenLayer00 <- Layer <$> (scaledBy (1 / 32) <$> randomM' @hiddenNeuronCount @hiddenNeuronCount rng) <*> randomV' @hiddenNeuronCount rng <*> return zero
-  hiddenLayer01 <- Layer <$> (scaledBy (1 / 32) <$> randomM' @hiddenNeuronCount @hiddenNeuronCount rng) <*> randomV' @hiddenNeuronCount rng <*> return zero
-  outputLayer <- Layer <$> randomM' @10 @hiddenNeuronCount rng <*> randomV' @10 rng <*> return zero
   let learningRate = 0.25
-      ann =
-        inputLayer ReLU (StochasticGradientDescent learningRate)
-          :>: hiddenLayer00 ReLU (StochasticGradientDescent learningRate)
-          :>: hiddenLayer01 ReLU (StochasticGradientDescent learningRate)
-            =| outputLayer Softmax (StochasticGradientDescent learningRate)
+  inputLayer <- mkLayer $ do
+    inputs @pixelCount
+    neuronsWith @hiddenNeuronCount rng $ weightsScaledBy (1 / 784)
+    activationF ReLU
+    optimizerFunction (StochasticGradientDescent learningRate)
+
+  [hiddenLayer00, hiddenLayer01] <- mkLayers 2 $ do
+    neuronsWith @hiddenNeuronCount rng $ weightsScaledBy (1 / 32)
+    activationF ReLU
+    optimizerFunction (StochasticGradientDescent learningRate)
+
+  outputLayer <- mkLayer $ do
+    neurons @10 rng
+    activationF Softmax
+    optimizerFunction (StochasticGradientDescent learningRate)
+  let ann = inputLayer :>: hiddenLayer00 :>: hiddenLayer01 =| outputLayer
       initialTrainerState = TrainerState ann CategoricalCrossEntropy
 
   let producer env sendMsg = do
         -- Train network.
         labels <- streamMNISTLabels pathToMNISTLabel
         imgs <- streamMNISTImages @pixelCount pathToMNISTImage
-        let onlyThree (label, _) = label ^?! ix 2 == 1
-            s = streamOfSize @batchSize $ S.zip labels imgs
+        let s = streamOfSize @batchSize $ S.zip labels imgs
             trainNetwork (ts, epoch) (labels, images) = do
               (tr, ts') <- liftIO $ runTrainer (oneEpoch images labels) ts
-              liftIO . sendMsg . HeuronUpdate $ UpdateEvent (tr ^. trainingResultLoss) (tr ^. trainingResultAccuracy) epoch images (ts' ^. network)
+              liftIO . sendMsg . HeuronUpdate $ UpdateEvent (tr ^. trainingResultLoss) (tr ^. trainingResultAccuracy) epoch (ts' ^. network . to viewNetFromHeuronNet)
               return (ts', epoch + 1)
 
         print "Starting training..."
@@ -86,38 +95,31 @@ main = do
         ]
       model =
         HeuronModel
-          { _heuronModelNet = ann,
+          { _heuronModelNet = viewNetFromHeuronNet ann,
             _heuronModelAvgLoss = 0.00,
             _heuronModelAccuracy = 0.00,
             _heuronModelCurrentEpoch = 0,
-            _heuronModelMaxEpochs = maxEpochs,
-            _heuronModelCurrentBatch = zero
+            _heuronModelMaxEpochs = maxEpochs
           }
   startApp model (handleEvent producer) buildUI config
   where
     maxEpochs = natVal (Proxy @numOfImages) `div` natVal (Proxy @batchSize)
-    forwardNetwork (ts, epoch) (labels, images) = do
-      (prediction, ts') <- liftIO $ runTrainer (trainForward images) ts
-      liftIO . putStrLn $ printf "Network:\n%s" (show $ _network ts')
-      liftIO . putStrLn $ printf "Prediction: %s" (show prediction)
-      return (ts', epoch + 1)
 
 handleEvent ::
-  (WidgetEnv (HeuronModel b net) (HeuronEvent b net) -> ProducerHandler (HeuronEvent b net)) ->
-  WidgetEnv (HeuronModel b net) (HeuronEvent b net) ->
-  WidgetNode (HeuronModel b net) (HeuronEvent b net) ->
-  HeuronModel b net ->
-  HeuronEvent b net ->
-  [AppEventResponse (HeuronModel b net) (HeuronEvent b net)]
+  (WidgetEnv HeuronModel HeuronEvent -> ProducerHandler HeuronEvent) ->
+  WidgetEnv HeuronModel HeuronEvent ->
+  WidgetNode HeuronModel HeuronEvent ->
+  HeuronModel ->
+  HeuronEvent ->
+  [AppEventResponse HeuronModel HeuronEvent]
 handleEvent producer we node model evt = case evt of
   HeuronInit -> [Producer $ producer we]
-  HeuronUpdate (UpdateEvent avgLoss acc currentEpoch cb newNet) ->
+  HeuronUpdate (UpdateEvent avgLoss acc currentEpoch newNet) ->
     [ Model
         model
           { _heuronModelAvgLoss = avgLoss,
             _heuronModelAccuracy = acc,
             _heuronModelCurrentEpoch = currentEpoch,
-            _heuronModelCurrentBatch = cb,
             _heuronModelNet = newNet
           }
     ]
