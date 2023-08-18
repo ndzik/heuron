@@ -59,7 +59,7 @@ library
                       , TypeApplications
                       , TypeFamilies
                       , TypeOperators
-    build-depends:    base ^>=4.14.3.0
+    build-depends:    base ^>=4.16.4.0
                     , mtl
                     , lens
                     , number
@@ -84,7 +84,7 @@ executable heuron
     -- LANGUAGE extensions used by modules in this package.
     -- other-extensions:
     build-depends:
-        base ^>=4.14.3.0,
+        base ^>=4.16.4.0,
         heuron,
         plots,
         diagrams-core,
@@ -122,7 +122,7 @@ test-suite heuron-test
     default-extensions: TypeApplications
                         , DataKinds
     main-is:          Main.hs
-    build-depends:    base ^>=4.14.3.0
+    build-depends:    base ^>=4.16.4.0
                     , heuron
                     , random
                     , lens
