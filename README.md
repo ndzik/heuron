@@ -78,6 +78,41 @@ The output layer expects `hiddenNeuronCount` inputs and contains `10` neurons us
 `Softmax` activation function to finally classify each digit, also using `StochasticGradientDescent`
 as its optimizer.
 
+### Heuron.V1 Layer description
+Describing layers is rather easy. A few combinators are defined and more can be easily added.
+The above example uses the following code to describe the layers:
+
+```haskell
+-- Describe network.
+let learningRate = 0.25
+inputLayer <- mkLayer $ do
+  inputs @pixelCount
+  neuronsWith @hiddenNeuronCount rng $ weightsScaledBy (1 / 784)
+  activationF ReLU
+  optimizerFunction (StochasticGradientDescent learningRate)
+
+[hiddenLayer00, hiddenLayer01] <- mkLayers 2 $ do
+  neuronsWith @hiddenNeuronCount rng $ weightsScaledBy (1 / 32)
+  activationF ReLU
+  optimizerFunction (StochasticGradientDescent learningRate)
+
+outputLayer <- mkLayer $ do
+  neurons @10 rng
+  activationF Softmax
+  optimizerFunction (StochasticGradientDescent learningRate)
+```
+
+* `inputs` allows to explicitly define the amount of inputs a layer is expecting.
+* `neuronsWith` is required to set the number of neurons in this layer. `neurons` is a convenience
+  function if there is no need to further modify the initial weightdistribution. 
+* `activationF` allows to define the activation function.
+* `optimizerFunction` sets the optimizer function.
+
+Note how the hidden layers **do not** define their respective inputs. When the layers are used to
+describe the ANN, GHC will automagically narrow the number of inputs down to the number of outputs
+from the previous layer. One can, of course, still explicitly define the number of expected inputs
+and if they do not match, GHC will tell you that somewith is wrong with your network description.
+
 ## Heuron.V2
 
 With my experience from implementing V1 I want to generalize the created interfaces and make
