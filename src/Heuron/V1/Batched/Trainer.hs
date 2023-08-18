@@ -6,6 +6,7 @@ module Heuron.V1.Batched.Trainer where
 
 import Control.Lens
 import Control.Monad.State
+import Data.Data (Proxy (..))
 import GHC.TypeLits
 import Heuron.V1.Batched.Activation (Differentiable (DerivativeReturn, derivative))
 import Heuron.V1.Batched.Backprop (Backprop (backprop))
@@ -14,6 +15,7 @@ import Heuron.V1.Batched.Input (Input)
 import Heuron.V1.Batched.Loss (LossComparator (..))
 import Heuron.V1.Batched.Network
 import Heuron.V1.Matrix
+import Linear (sumV)
 import Text.Printf (printf)
 
 newtype Trainer (b :: Nat) net l m a = Trainer {_trainWith :: StateT (TrainerState b net l) m a}
@@ -25,6 +27,14 @@ data TrainerState (b :: Nat) net l = TrainerState
   }
 
 makeLenses ''TrainerState
+
+data TrainingResult = TrainingResult
+  { _trainingResultLoss :: !Double,
+    _trainingResultAccuracy :: !Double
+  }
+  deriving (Show)
+
+makeLenses ''TrainingResult
 
 runTrainer :: Trainer b net l m a -> TrainerState b net l -> m (a, TrainerState b net l)
 runTrainer trainer = runStateT (_trainWith trainer)
@@ -50,7 +60,7 @@ oneEpoch ::
   ) =>
   Input b n Double ->
   Input b n' Double ->
-  Trainer b net l m Double
+  Trainer b net l m TrainingResult
 oneEpoch input truth = trainForward input >>= trainBackprop truth
 
 debugOneEpoch ::
@@ -113,7 +123,9 @@ trainForward input =
     return forwardResult
 
 trainBackprop ::
+  forall b n n' net l m.
   ( TrainerConstraints b net l m,
+    KnownNat b,
     KnownNat n,
     KnownNat n',
     DerivativeReturn l (Input b n' Double) ~ Input b n' Double,
@@ -123,13 +135,20 @@ trainBackprop ::
   ) =>
   Input b n' Double ->
   Input b n' Double ->
-  Trainer b net l m Double
+  Trainer b net l m TrainingResult
 trainBackprop truth forwardResult = do
   use network >>= \n -> do
     lossGradient <- trainLossGradient truth forwardResult
     let n' = backprop n forwardResult lossGradient
     network .= n'
-  trainAccuracy truth forwardResult
+    l <-
+      trainLoss truth forwardResult >>= \l -> do
+        let batchSize = fromIntegral $ natVal (Proxy @b)
+            allLoss = sum . sumV $ l
+            avgLoss = allLoss / batchSize
+        return avgLoss
+    acc <- trainAccuracy truth forwardResult
+    return $ TrainingResult l acc
 
 -- | trainLoss computes the loss of the network compared to the truth
 -- for each sample in a batch.

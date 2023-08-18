@@ -7,6 +7,7 @@ import Data.Vector (fromList)
 import GHC.TypeLits
 import Linear.V
 import System.Random
+import qualified System.Random.Stateful as Stateful
 
 -- | Create a Vector with dimension n from a list of values. This will fail if
 -- the given list of values does not match the dimension n. For an unsafe
@@ -36,6 +37,9 @@ mkV' :: forall n a. (KnownNat n) => [a] -> IO (V n a)
 mkV' xs = case fromVector . fromList $ xs of
   Just v -> return v
   Nothing -> error "mkVector: failed to create vector"
+
+randomVS :: forall n g r m. (KnownNat n, RandomGen r, Stateful.RandomGenM g r m) => g -> m (V n Double)
+randomVS = Stateful.randomM
 
 randomV :: forall n g a. (KnownNat n, RandomGen g) => g -> (V n Double, g)
 randomV rng =

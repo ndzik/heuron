@@ -1,8 +1,15 @@
+{-# LANGUAGE InstanceSigs #-}
 {-# LANGUAGE UndecidableInstances #-}
 
 module Heuron.V1.Batched.Network where
 
+import Codec.Serialise
+import Codec.Serialise.Decoding
+import Codec.Serialise.Encoding
+import Control.Lens
+import Data.Data (Proxy (..))
 import Data.Kind (Constraint)
+import Data.Vector (Vector)
 import GHC.TypeLits
 import Heuron.V1.Batched.Activation
 import Heuron.V1.Batched.Input
@@ -28,26 +35,73 @@ import Linear.Vector
 -- @
 data Network (b :: Nat) as where
   NetworkEnd :: Network b '[]
-  (:>:) :: () => a -> Network b as -> Network b (a ': as)
+  (:>:) :: () => Layer b i n af op -> Network b as -> Network b (Layer b i n af op ': as)
 
 type family Showable as :: Constraint where
   Showable '[] = ()
-  Showable (a:as) = (Show a, Showable as)
+  Showable (a : as) = (Show a, Showable as)
 
 instance (Showable net) => Show (Network b net) where
   show NetworkEnd = "=|"
-  show (a :>: as) = unlines [show a ,":>:" ,show as]
+  show (a :>: as) = unlines [show a, ":>:", show as]
+
+type family ComparableNetwork net :: Constraint where
+  ComparableNetwork '[] = ()
+  ComparableNetwork (a ': as) = (Eq a, ComparableNetwork as)
+
+instance (ComparableNetwork net) => Eq (Network b net) where
+  NetworkEnd == NetworkEnd = True
+  (a :>: as) == (b :>: bs) = a == b && as == bs
+
+type family SerializableNetwork net :: Constraint where
+  SerializableNetwork (Network b '[]) = ()
+  SerializableNetwork (Network b (a ': as)) = (Serialise a, SerializableNetwork (Network b as))
+
+instance Serialise (Network b '[]) where
+  encode NetworkEnd = mempty
+  decode = pure NetworkEnd
+
+instance (Serialise l, KnownNat b, Serialise (Network b ls), l ~ Layer b i n af op, SerializableNetwork (Network b ls)) => Serialise (Network b (l ': ls)) where
+  encode (l :>: ls) = encode l <> encode ls
+
+  decode :: forall s b i n af op ls. (l ~ Layer b i n af op, Serialise (Network b ls)) => Decoder s (Network b (l ': ls))
+  decode = do
+    l <- decode @(Layer b i n af op)
+    ls <- decode @(Network b ls)
+    pure $ l :>: ls
 
 infixr 5 :>:
 
 infixr 5 =|
 
 -- | (=|) is a used as a combinator to construct the output layer of a network.
-(=|) :: a -> b -> Network c '[a, b]
+(=|) ::
+  ( KnownNat i,
+    KnownNat n,
+    KnownNat c,
+    KnownNat i',
+    KnownNat n',
+    a ~ Layer c i n af op,
+    b ~ Layer c i' n' af' op'
+  ) =>
+  a ->
+  b ->
+  Network c '[a, b]
 (=|) = networkEnd
 
 -- | networkEnd is a used as a combinator to construct a network.
-networkEnd :: a -> b -> Network c '[a, b]
+networkEnd ::
+  ( KnownNat i,
+    KnownNat n,
+    KnownNat c,
+    KnownNat i',
+    KnownNat n',
+    a ~ Layer c i n af op,
+    b ~ Layer c i' n' af' op'
+  ) =>
+  a ->
+  b ->
+  Network c '[a, b]
 networkEnd a b = a :>: b :>: NetworkEnd
 
 type family InputOf a where
@@ -79,6 +133,10 @@ type family Compatible a bs :: Constraint where
   Compatible (Layer b i n af op) (Layer b' j k af' op' : bs) = (n ~ j, b ~ b', Compatible (Layer b' j k af' op') bs)
   Compatible (Layer b i n af op) '[] = ()
 
+type family MadeOfLayers net net' :: Constraint where
+  MadeOfLayers (a : ls') (Layer b i n af op : ls) = (a ~ Layer b i n af op, MadeOfLayers ls' ls)
+  MadeOfLayers '[] '[] = ()
+
 type family IsReversed as bs cs :: Constraint where
   IsReversed (a : as) '[] cs = (IsReversed as '[a] cs)
   IsReversed (a : as) bs cs = (IsReversed as (a ': bs) cs)
@@ -105,3 +163,23 @@ reverseNetwork nn = reverse' nn NetworkEnd
     reverse' :: (IsReversed ds es fs) => Network b ds -> Network b es -> Network b fs
     reverse' NetworkEnd acc = acc
     reverse' (l :>: ls) acc = reverse' ls (l :>: acc)
+
+class IteratableNetwork n where
+  forLayerIn ::
+    (Monoid a) =>
+    n ->
+    -- | The function to apply to each layer:
+    --  (batch size, input dimension, number of neurons) -> weights -> bias -> a
+    ((Int, Int, Int) -> Vector (Vector Double) -> Vector Double -> a) ->
+    a
+
+instance IteratableNetwork (Network b '[]) where
+  forLayerIn NetworkEnd _ = mempty
+
+instance (KnownNat b, KnownNat i, KnownNat n, IteratableNetwork (Network b ls)) => IteratableNetwork (Network b (Layer b i n af op ': ls)) where
+  forLayerIn (l :>: ls) f =
+    f
+      (fromIntegral $ natVal (Proxy @b), fromIntegral $ natVal (Proxy @i), fromIntegral $ natVal (Proxy @n))
+      (l ^. weights . to (toVector . fmap toVector))
+      (l ^. bias . to toVector)
+      <> forLayerIn ls f

@@ -1,16 +1,21 @@
+{-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE InstanceSigs #-}
 {-# LANGUAGE RoleAnnotations #-}
 {-# LANGUAGE ScopedTypeVariables #-}
-{-# OPTIONS_GHC -Wno-deferred-out-of-scope-variables #-}
+{-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
+
+{-# HLINT ignore "Eta reduce" #-}
 
 -- | Any activation function can be implemented outside of this library by
 -- defining a data type that implements the `ActivationFunction` and
 -- `Differentiable` typeclasses.
 module Heuron.V1.Batched.Activation.Function where
 
+import Codec.Serialise
 import Control.Lens
 import Data.Data (Proxy (..))
 import qualified Data.Vector as Vec
+import GHC.Generics
 import GHC.TypeLits
 import Heuron.Functions hiding (Datum (..))
 import Linear (Metric (dot), scaled, transpose, (!-!))
@@ -57,7 +62,9 @@ class (Differentiable a) => BackpropableFunction a where
 class (BackpropableFunction a) => ActivationFunction a where
   activation :: (KnownNat b, KnownNat n, Dim b, Dim n) => a -> (V b (V n Double) -> V b (V n Double))
 
-data ReLU = ReLU
+data ReLU = ReLU deriving (Generic, Show, Eq)
+
+instance Serialise ReLU
 
 instance Differentiable ReLU where
   derivative ReLU oi _ = fmap (fmap drelu) oi
@@ -75,7 +82,9 @@ instance ActivationFunction ReLU where
       relu = max 0
 
 -- | Softmax activation function.
-data Softmax = Softmax
+data Softmax = Softmax deriving (Generic, Show, Eq)
+
+instance Serialise Softmax
 
 instance Differentiable Softmax where
   type DerivativeReturn Softmax (V b (V n Double)) = V b (V n (V n Double))
@@ -115,7 +124,7 @@ instance ActivationFunction Softmax where
   activation Softmax inputs =
     let batchSize = fromIntegral $ natVal (Proxy @b)
         maxInputs = maximum <$> inputs
-        indexedInputs = Vec.zip (Vec.fromList [0 .. (batchSize - 1)]) (toVector inputs)
+        indexedInputs = Vec.indexed (toVector inputs)
         expInputs =
           fromVector' @b $
             ( \(idx, vs) ->

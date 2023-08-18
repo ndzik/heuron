@@ -10,6 +10,7 @@ import GHC.TypeLits
 import Heuron.V1.Vector
 import Linear.V
 import System.Random (Random (random, randomR), RandomGen, StdGen, setStdGen)
+import qualified System.Random.Stateful as Stateful
 
 -- | Creates a matrix with dimension n x m from a list of lists of values. This
 -- will fail if the given list of lists of values does not match the dimension
@@ -42,6 +43,9 @@ mkM = join . mapM (mkV @n) . mapM (mkV @m)
 -- @
 mkM' :: forall n m. (KnownNat n, KnownNat m) => [[Double]] -> IO (V n (V m Double))
 mkM' xs = mapM (mkV' @m) xs >>= mkV' @n
+
+randomMS :: forall n m g r l. (KnownNat n, KnownNat m, RandomGen r, Stateful.RandomGenM g r l) => g -> l (V n (V m Double))
+randomMS = Stateful.randomM
 
 randomM :: forall n m g. (KnownNat n, KnownNat m, RandomGen g) => g -> (V n (V m Double), g)
 randomM rng =
