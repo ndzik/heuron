@@ -38,6 +38,7 @@ data OpenGLWidgetMsg
 
 data OpenGLWidgetState = OpenGLWidgetState
   { _ogsLoaded :: !Bool,
+    _ogsNetworkLoaded :: !Bool,
     _ogsShaderId :: !GLuint,
     _ogsLineVao :: !(Ptr GLuint),
     _ogsLineVeo :: !(Ptr GLuint),
@@ -56,7 +57,7 @@ openGLWidget net = defaultWidgetNode "openGLWidget" widget
   where
     color = red
     widget = makeOpenGLWidget net color state
-    state = OpenGLWidgetState False 0 nullPtr nullPtr nullPtr nullPtr nullPtr nullPtr 0 0 0
+    state = OpenGLWidgetState False False 0 nullPtr nullPtr nullPtr nullPtr nullPtr nullPtr 0 0 0
 
 makeOpenGLWidget :: ViewNetwork -> Color -> OpenGLWidgetState -> Widget HeuronModel e
 makeOpenGLWidget initNet color state = widget
@@ -106,24 +107,24 @@ makeOpenGLWidget initNet color state = widget
 
         reqs = [RunInRenderThread widgetId path initOpenGL]
 
-    merge wenv node oldNode oldState = resultReqs newNode reqs
+    merge wenv node oldNode oldState = if _ogsNetworkLoaded oldState then resultNode newNode else resultReqs newNode reqs
       where
         reloadVertices = do
           let (neuronVertices, neuronElements, _, lineVertices, lineElements, _) = generateNetworkVectors wenv newNode initNet
-              OpenGLWidgetState _ _ lineVaoPtr lineVeoPtr lineVboPtr vaoPtr veoPtr vboPtr _ _ _ = oldState
           loadVertices (vaoPtr, vboPtr, veoPtr) neuronVertices neuronElements
           loadVertices (lineVaoPtr, lineVboPtr, lineVeoPtr) lineVertices lineElements
+        OpenGLWidgetState _ _ _ lineVaoPtr lineVeoPtr lineVboPtr vaoPtr veoPtr vboPtr _ _ _ = oldState
         widgetId = node ^. L.info . L.widgetId
         path = node ^. L.info . L.path
         reqs = [RunInRenderThread widgetId path reloadVertices]
         newNet = wenv ^. L.model . heuronModelNet
         newNode =
           node
-            & L.widget .~ makeOpenGLWidget newNet color oldState
+            & L.widget .~ makeOpenGLWidget newNet color oldState {_ogsNetworkLoaded = True}
 
     dispose wenv node = resultReqs node reqs
       where
-        OpenGLWidgetState _ shaderId lineVaoPtr lineVeoPtr lineVboPtr vaoPtr veoPtr vboPtr biasLoc numOfNeurons numOfLines = state
+        OpenGLWidgetState _ _ shaderId lineVaoPtr lineVeoPtr lineVboPtr vaoPtr veoPtr vboPtr biasLoc numOfNeurons numOfLines = state
         widgetId = node ^. L.info . L.widgetId
         path = node ^. L.info . L.path
         buffers = 2
@@ -326,7 +327,7 @@ drawVertices state vertices elements = do
   where
     floatSize = sizeOf (undefined :: Float)
     uintSize = sizeOf (undefined :: GLuint)
-    OpenGLWidgetState _ shaderId lineVaoPtr lineVeoPtr lineVboPtr vaoPtr veoPtr vboPtr biasLoc numOfNeurons numOfLines = state
+    OpenGLWidgetState _ _ shaderId lineVaoPtr lineVeoPtr lineVboPtr vaoPtr veoPtr vboPtr biasLoc numOfNeurons numOfLines = state
 
 drawNetwork :: OpenGLWidgetState -> ViewNetwork -> IO ()
 drawNetwork state net = do
@@ -356,7 +357,7 @@ drawNetwork state net = do
   where
     floatSize = sizeOf (undefined :: Float)
     uintSize = sizeOf (undefined :: GLuint)
-    OpenGLWidgetState _ shaderId lineVaoPtr lineVeoPtr lineVboPtr vaoPtr veoPtr vboPtr biasLoc numOfNeurons numOfLines = state
+    OpenGLWidgetState _ _ shaderId lineVaoPtr lineVeoPtr lineVboPtr vaoPtr veoPtr vboPtr biasLoc numOfNeurons numOfLines = state
 
 createShaderProgram :: IO GLuint
 createShaderProgram = do
