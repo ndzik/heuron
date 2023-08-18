@@ -2,7 +2,9 @@
 {-# LANGUAGE InstanceSigs #-}
 {-# LANGUAGE RoleAnnotations #-}
 {-# LANGUAGE ScopedTypeVariables #-}
-{-# OPTIONS_GHC -Wno-deferred-out-of-scope-variables #-}
+{-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
+
+{-# HLINT ignore "Eta reduce" #-}
 
 -- | Any activation function can be implemented outside of this library by
 -- defining a data type that implements the `ActivationFunction` and
@@ -122,7 +124,7 @@ instance ActivationFunction Softmax where
   activation Softmax inputs =
     let batchSize = fromIntegral $ natVal (Proxy @b)
         maxInputs = maximum <$> inputs
-        indexedInputs = Vec.zip (Vec.fromList [0 .. (batchSize - 1)]) (toVector inputs)
+        indexedInputs = Vec.indexed (toVector inputs)
         expInputs =
           fromVector' @b $
             ( \(idx, vs) ->
