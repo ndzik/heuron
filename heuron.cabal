@@ -42,6 +42,9 @@ library
                     , Heuron.V1.Batched.Optimizer.Function
                     , Heuron.V1.Batched.Optimizer.Types
                     , Heuron.V1.Single
+                    , Heuron.V2
+                    , Heuron.V2.Network
+                    , Heuron.V2.Layer
 
     -- Modules included in this library but not exported.
     other-modules:    Heuron.V1.Single.Network
