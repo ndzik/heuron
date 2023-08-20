@@ -46,7 +46,7 @@ pathToMNISTImage = "./data/train-images-idx3-ubyte"
 scaledBy :: (KnownNat n, KnownNat m) => Double -> Input n m Double -> Input n m Double
 scaledBy x = fmap (fmap (* x))
 
-main :: forall pixelCount batchSize numOfImages hiddenNeuronCount. (hiddenNeuronCount ~ 32, pixelCount ~ 784, batchSize ~ 100, numOfImages ~ 57321) => IO ()
+main :: forall pixelCount batchSize numOfImages hiddenNeuronCount. (hiddenNeuronCount ~ 16, pixelCount ~ 784, batchSize ~ 100, numOfImages ~ 57321) => IO ()
 main = do
   rng <- newIOGenM (mkStdGen 42069)
 
@@ -58,8 +58,8 @@ main = do
     activationF ReLU
     optimizerFunction (StochasticGradientDescent learningRate)
 
-  [hiddenLayer00, hiddenLayer01] <- mkLayers 2 $ do
-    neuronsWith @hiddenNeuronCount rng $ weightsScaledBy (1 / 32)
+  [hiddenLayer00] <- mkLayers 1 $ do
+    neuronsWith @hiddenNeuronCount rng $ weightsScaledBy (1 / 16)
     activationF ReLU
     optimizerFunction (StochasticGradientDescent learningRate)
 
@@ -67,7 +67,7 @@ main = do
     neurons @10 rng
     activationF Softmax
     optimizerFunction (StochasticGradientDescent learningRate)
-  let ann = inputLayer :>: hiddenLayer00 :>: hiddenLayer01 =| outputLayer
+  let ann = inputLayer :>: hiddenLayer00 =| outputLayer
       initialTrainerState = TrainerState ann CategoricalCrossEntropy
 
   let producer env sendMsg = do

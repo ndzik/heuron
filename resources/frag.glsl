@@ -6,5 +6,5 @@ uniform float bias;
 
 void main()
 {
-    FragColor = vec4(bias * ourColor,1.0);
+    FragColor = vec4(bias * ourColor.r, bias + ourColor.g, bias * ourColor.b ,1.0);
 }
