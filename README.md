@@ -53,10 +53,12 @@ will tell you something is wrong.
 
 ### Heuron.V1 - MNIST handwritten digits example
 
+![Heuron-Net-Training](https://github.com/ndzik/heuron/assets/33512740/216066d3-19b5-45a8-88d1-28f6c610790f)
+
 The executable defined by default uses the training set from the [MNIST database for handwritten digits](http://yann.lecun.com/exdb/mnist/).
 Downloading the database and placing the training set in a `data/` folder within the directory
 where `heuron` is started, will train a simple ANN on said dataset. This is a practical example
-of `Heuron.V1` usage.
+of `Heuron.V1` usage. The above picture draws the current network parameters during training.
 
 The network defined is of the following type:
 
