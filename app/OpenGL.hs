@@ -3,6 +3,7 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE KindSignatures #-}
+{-# LANGUAGE NumericUnderscores #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RankNTypes #-}
 
@@ -46,7 +47,7 @@ data OpenGLWidgetState = OpenGLWidgetState
     _ogsVao :: !(Ptr GLuint),
     _ogsVeo :: !(Ptr GLuint),
     _ogsVbo :: !(Ptr GLuint),
-    _ogsBiasLoc :: !GLint,
+    _ogsColorLoc :: !GLint,
     _ogsNumOfNeurons :: !Int,
     _ogsNumOfLines :: !Int
   }
@@ -93,7 +94,7 @@ makeOpenGLWidget initNet color state = widget
           glGenVertexArrays buffers vaoPtr
           glGenBuffers buffers vboPtr
           glGenBuffers buffers veoPtr
-          biasLoc <- withCString "bias" $ \bias -> glGetUniformLocation program bias
+          colorLoc <- withCString "color" $ \bias -> glGetUniformLocation program bias
 
           -- Load initial network lines.
           lineVaoPtr <- malloc
@@ -103,7 +104,7 @@ makeOpenGLWidget initNet color state = widget
           glGenBuffers buffers lineVboPtr
           glGenBuffers buffers lineVeoPtr
 
-          return $ OpenGLWidgetInit program numOfNeurons numOfLines lineVaoPtr lineVeoPtr lineVboPtr vaoPtr veoPtr vboPtr biasLoc
+          return $ OpenGLWidgetInit program numOfNeurons numOfLines lineVaoPtr lineVeoPtr lineVboPtr vaoPtr veoPtr vboPtr colorLoc
 
         reqs = [RunInRenderThread widgetId path initOpenGL]
 
@@ -124,7 +125,7 @@ makeOpenGLWidget initNet color state = widget
 
     dispose wenv node = resultReqs node reqs
       where
-        OpenGLWidgetState _ _ shaderId lineVaoPtr lineVeoPtr lineVboPtr vaoPtr veoPtr vboPtr biasLoc numOfNeurons numOfLines = state
+        OpenGLWidgetState _ _ shaderId lineVaoPtr lineVeoPtr lineVboPtr vaoPtr veoPtr vboPtr colorLoc numOfNeurons numOfLines = state
         widgetId = node ^. L.info . L.widgetId
         path = node ^. L.info . L.path
         buffers = 2
@@ -143,7 +144,7 @@ makeOpenGLWidget initNet color state = widget
 
     handleMessage :: SingleMessageHandler HeuronModel e
     handleMessage wenv node target msg = case cast msg of
-      Just (OpenGLWidgetInit shaderId numOfNeurons numOfLines lineVao lineVeo lineVbo vao veo vbo biasLoc) -> Just result
+      Just (OpenGLWidgetInit shaderId numOfNeurons numOfLines lineVao lineVeo lineVbo vao veo vbo colorLoc) -> Just result
         where
           newState = state {_ogsLoaded = True, _ogsShaderId = shaderId, _ogsLineVao = lineVao, _ogsLineVeo = lineVeo, _ogsLineVbo = lineVbo, _ogsVao = vao, _ogsVeo = veo, _ogsVbo = vbo, _ogsNumOfNeurons = numOfNeurons, _ogsNumOfLines = numOfLines}
           newNode =
@@ -177,8 +178,8 @@ makeOpenGLWidget initNet color state = widget
 
 generateNetworkVectors :: WidgetEnv HeuronModel e -> WidgetNode HeuronModel e -> ViewNetwork -> (V.Vector Float, V.Vector GLuint, Int, V.Vector Float, V.Vector GLuint, Int)
 generateNetworkVectors wenv node initNet =
-  let networkOffset = 300
-      layerWidth = 100
+  let networkOffset = 100
+      layerWidth = 300
       winSize = wenv ^. L.windowSize
       offset = wenv ^. L.offset
       (neuronVertices, numOfNeurons, lineVertices, numOfLines) = numLoopFold 0 (DV.length layeredWeights - 1) (mempty, 0, mempty, 0) $ \(nsV, numNs, linesV, lineNs) layerIndex ->
@@ -195,16 +196,15 @@ generateNetworkVectors wenv node initNet =
                   lineVerticesI = numLoopFold 0 (numOfInputs - 1) mempty $ \lsI inputIndex ->
                     let inputYOffset = fromIntegral inputIndex - fromIntegral numOfInputs / 2
                         (inputX, inputY) = (networkOffset + fromIntegral (layerIndex - 1) * layerWidth + rx, inputYOffset * neuronHeight + ry + rh / 2)
-                     in lsI <> toVectorVAO winSize offset color [(inputX, inputY), (myX, myY)]
-               in (vs <> toVectorVAO winSize offset color octagon, ls <> lineVerticesI)
+                     in lsI <> toVectorVAO winSize offset [(inputX + octagonRadius, inputY), (myX - octagonRadius, myY)]
+               in (vs <> toVectorVAO winSize offset octagon, ls <> lineVerticesI)
          in (nsV <> neuronVerticesI, numNs + numOfNeurons, linesV <> linesToNeuronI, lineNs + numOfNeurons * numOfInputs)
       neuronElements = numLoopFold 0 (numOfNeurons - 1) mempty $ \es idx -> es <> V.map (+ (fromIntegral $ idx * 9)) (toVectorEAO octagonElements)
       lineElements = numLoopFold 0 (numOfLines - 1) mempty $ \es idx -> es <> V.map (+ (fromIntegral $ idx * 2)) (toVectorEAO [0, 1])
    in (neuronVertices, neuronElements, V.length neuronElements, lineVertices, lineElements, V.length lineElements)
   where
-    color = red
     layeredWeights = initNet ^. viewNetworkWeights
-    octagonRadius = 6
+    octagonRadius = 12
     neuronHeight = octagonRadius * 2 + 2
     style = currentStyle wenv node
     nodeVp = getContentArea node style
@@ -232,14 +232,14 @@ doInScissor winSize dpr offset vp action = do
     Point ox oy = mulPoint dpr offset
     Rect rx ry rw rh = mulRect dpr vp
 
-toVectorVAO :: Size -> Point -> Color -> [(Double, Double)] -> V.Vector Float
-toVectorVAO (Size w h) (Point ox oy) (Color r g b a) points = vec
+toVectorVAO :: Size -> Point -> [(Double, Double)] -> V.Vector Float
+toVectorVAO (Size w h) (Point ox oy) points = vec
   where
     px x = realToFrac $ (x + ox - w / 2) / (w / 2)
     -- OpenGL's Y axis increases from bottom to top
     py y = realToFrac $ (h / 2 - y - oy) / (h / 2)
     col c = realToFrac (fromIntegral c / 255)
-    row (x, y) = [px x, py y, 0, col r, col g, col b]
+    row (x, y) = [px x, py y, 0]
     vec = V.fromList . concat $ row <$> points
 
 toVectorEAO :: [GLuint] -> V.Vector GLuint
@@ -265,12 +265,8 @@ loadVertices (ptrVao, ptrVbo, ptrVeo) vertices elements = do
       GL_STATIC_DRAW
 
   -- The vertex shader expects two arguments. Position:
-  glVertexAttribPointer 0 3 GL_FLOAT GL_FALSE (fromIntegral (floatSize * 6)) nullPtr
+  glVertexAttribPointer 0 3 GL_FLOAT GL_FALSE (fromIntegral (floatSize * 3)) nullPtr
   glEnableVertexAttribArray 0
-
-  -- Color:
-  glVertexAttribPointer 1 3 GL_FLOAT GL_FALSE (fromIntegral (floatSize * 6)) (nullPtr `plusPtr` (floatSize * 3))
-  glEnableVertexAttribArray 1
 
   peek ptrVeo >>= glBindBuffer GL_ELEMENT_ARRAY_BUFFER
   V.unsafeWith elements $ \elemsPtr ->
@@ -315,49 +311,76 @@ drawVertices state vertices elements = do
       GL_STATIC_DRAW
 
   -- The vertex shader expects two arguments. Position:
-  glVertexAttribPointer 0 3 GL_FLOAT GL_FALSE (fromIntegral (floatSize * 6)) nullPtr
+  glVertexAttribPointer 0 3 GL_FLOAT GL_FALSE (fromIntegral (floatSize * 3)) nullPtr
   glEnableVertexAttribArray 0
-
-  -- Color:
-  glVertexAttribPointer 1 3 GL_FLOAT GL_FALSE (fromIntegral (floatSize * 6)) (nullPtr `plusPtr` (floatSize * 3))
-  glEnableVertexAttribArray 1
 
   glUseProgram shaderId
   glDrawElements GL_TRIANGLES (fromIntegral $ V.length elements) GL_UNSIGNED_INT nullPtr
   where
     floatSize = sizeOf (undefined :: Float)
     uintSize = sizeOf (undefined :: GLuint)
-    OpenGLWidgetState _ _ shaderId lineVaoPtr lineVeoPtr lineVboPtr vaoPtr veoPtr vboPtr biasLoc numOfNeurons numOfLines = state
+    OpenGLWidgetState _ _ shaderId lineVaoPtr lineVeoPtr lineVboPtr vaoPtr veoPtr vboPtr colorLoc numOfNeurons numOfLines = state
 
 drawNetwork :: OpenGLWidgetState -> ViewNetwork -> IO ()
 drawNetwork state net = do
-  peek lineVaoPtr >>= glBindVertexArray
-  peek lineVboPtr >>= glBindBuffer GL_ARRAY_BUFFER
-  peek lineVeoPtr >>= glBindBuffer GL_ELEMENT_ARRAY_BUFFER
-  glUseProgram shaderId
-  glUniform1f biasLoc 0.0
-  glDrawElements GL_LINES (fromIntegral numOfLines) GL_UNSIGNED_INT nullPtr
-
-  peek vaoPtr >>= glBindVertexArray
-  peek vboPtr >>= glBindBuffer GL_ARRAY_BUFFER
-  peek veoPtr >>= glBindBuffer GL_ELEMENT_ARRAY_BUFFER
-
-  glUseProgram shaderId
   let layeredWeights = net ^. viewNetworkWeights
       layeredBiases = net ^. viewNetworkBiases
+
   void $ numLoopFold 0 (DV.length layeredWeights - 1) (return 0) $ \ni layerIndex -> do
     n <- ni
     let numOfNeuronsInLayer = DV.length (layeredWeights DV.! layerIndex)
+        numOfInputs = DV.length (layeredWeights DV.! layerIndex ! 0)
     numLoop 0 (numOfNeuronsInLayer - 1) $ \neuronIndex -> do
+      -- Draw neuron edges.
+      peek lineVaoPtr >>= glBindVertexArray
+      peek lineVboPtr >>= glBindBuffer GL_ARRAY_BUFFER
+      peek lineVeoPtr >>= glBindBuffer GL_ELEMENT_ARRAY_BUFFER
+      glUseProgram shaderId
+      numLoop 0 (numOfInputs - 1) $ \inputIndex -> do
+        let weight = layeredWeights ! layerIndex ! neuronIndex ! inputIndex
+            numOfElements = 2
+        void $ loadEdgeColor weight colorLoc
+        glDrawElements GL_LINES numOfElements GL_UNSIGNED_INT (nullPtr `plusPtr` (uintSize * fromIntegral numOfElements * (n + numOfNeuronsInLayer + neuronIndex * numOfInputs + inputIndex)))
+
+      -- Draw neuron node.
+      peek vaoPtr >>= glBindVertexArray
+      peek vboPtr >>= glBindBuffer GL_ARRAY_BUFFER
+      peek veoPtr >>= glBindBuffer GL_ELEMENT_ARRAY_BUFFER
+      glUseProgram shaderId
       let bias = layeredBiases ! layerIndex ! neuronIndex
           numOfElements = 24
-      glUniform1f biasLoc (realToFrac bias)
+          (r, g, b) = mapColorValues (realToFrac . (*) (1 / 100 * bias) . fromIntegral) lime
+      glUniform3f colorLoc r g b
       glDrawElements GL_TRIANGLES numOfElements GL_UNSIGNED_INT (nullPtr `plusPtr` (uintSize * fromIntegral numOfElements * (n + neuronIndex)))
     return (n + numOfNeuronsInLayer)
   where
-    floatSize = sizeOf (undefined :: Float)
     uintSize = sizeOf (undefined :: GLuint)
-    OpenGLWidgetState _ _ shaderId lineVaoPtr lineVeoPtr lineVboPtr vaoPtr veoPtr vboPtr biasLoc numOfNeurons numOfLines = state
+    OpenGLWidgetState _ _ shaderId lineVaoPtr lineVeoPtr lineVboPtr vaoPtr veoPtr vboPtr colorLoc numOfNeurons numOfLines = state
+    loadEdgeColor w colorLoc
+      | w <= 0.000_000_1 =
+          let (r, g, b) = mapColorValues (realToFrac . (*) (w * 100_000_0) . fromIntegral) darkKhaki
+           in glUniform3f colorLoc r g b
+      | w <= 0.000_01 =
+          let (r, g, b) = mapColorValues (realToFrac . (*) (w * 100_000) . fromIntegral) yellowGreen
+           in glUniform3f colorLoc r g b
+      | w <= 0.000_1 =
+          let (r, g, b) = mapColorValues (realToFrac . (*) (w * 10_000) . fromIntegral) brown
+           in glUniform3f colorLoc r g b
+      | w <= 0.001 =
+          let (r, g, b) = mapColorValues (realToFrac . (*) (w * 1_000) . fromIntegral) yellow
+           in glUniform3f colorLoc r g b
+      | w <= 0.01 =
+          let (r, g, b) = mapColorValues (realToFrac . (*) (w * 100) . fromIntegral) blue
+           in glUniform3f colorLoc r g b
+      | w <= 0.1 =
+          let (r, g, b) = mapColorValues (realToFrac . (*) (w * 10) . fromIntegral) green
+           in glUniform3f colorLoc r g b
+      | otherwise =
+          let (r, g, b) = mapColorValues (realToFrac . (*) w . fromIntegral) red
+           in glUniform3f colorLoc r g b
+
+mapColorValues :: (Int -> Float) -> Color -> (Float, Float, Float)
+mapColorValues f (Color r g b _) = (f r, f g, f b)
 
 createShaderProgram :: IO GLuint
 createShaderProgram = do

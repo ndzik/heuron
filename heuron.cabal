@@ -42,6 +42,14 @@ library
                     , Heuron.V1.Batched.Optimizer.Function
                     , Heuron.V1.Batched.Optimizer.Types
                     , Heuron.V1.Single
+                    , Heuron.V2
+                    , Heuron.V2.Network
+                    , Heuron.V2.Layer
+                    , Heuron.V2.Backend
+                    , Heuron.V2.Backend.Haskell
+                    , Heuron.V2.Backend.Haskell.Haskell
+                    , Heuron.V2.Backend.Haskell.State
+                    , Heuron.V2.Backend.Translator
 
     -- Modules included in this library but not exported.
     other-modules:    Heuron.V1.Single.Network
@@ -69,6 +77,7 @@ library
                     , streaming
                     , streaming-bytestring
                     , serialise
+                    , data-default
     hs-source-dirs:   src
     default-language: Haskell2010
 
@@ -78,6 +87,8 @@ executable heuron
     -- Modules included in this executable, other than Main.
     other-modules: Digits
                  , View
+                 , V1Example
+                 , V2Example
                  , OpenGL
                  , Types
 
