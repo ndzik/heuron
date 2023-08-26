@@ -68,7 +68,7 @@ instance
     TargetStructure Haskell (Network b (Layer i n af op ': l1 ': l2 ': ls)) =
       TranslateNetwork (Network b (Layer i n af op ': l1 ': l2 ': ls))
 
-  -- Catch end of recurions here.
+  -- Catch end of recursion here.
   translate (l0 :>: l1 :=> ls) = (V1.:>:) <$> translateLayer @b l0 <*> translate (l1 :=> ls)
   -- We also have to explicitly match the number of layers here, otherwise the
   -- instance cannot be resolved for `Translatable Haskell (Network net)`.
