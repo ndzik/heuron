@@ -87,6 +87,8 @@ executable heuron
     -- Modules included in this executable, other than Main.
     other-modules: Digits
                  , View
+                 , V1Example
+                 , V2Example
                  , OpenGL
                  , Types
 
