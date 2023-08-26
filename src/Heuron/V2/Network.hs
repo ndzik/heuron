@@ -8,25 +8,23 @@ import Heuron.V2.Layer
 
 data Network (b :: Nat) ls where
   (:>:) ::
-    (CheckValidLayers (Layer b i n af op) (Layer b' i' n' af' op')) =>
-    Layer b i n af op ->
-    Network b' (Layer b' i' n' af' op' ': ls) ->
-    Network b' (Layer b i n af op ': Layer b' i' n' af' op' ': ls)
+    (CheckValidLayers (Layer i n af op) (Layer i' n' af' op')) =>
+    Layer i n af op ->
+    Network b (Layer i' n' af' op' ': ls) ->
+    Network b (Layer i n af op ': Layer i' n' af' op' ': ls)
   (:=>) ::
-    (CheckValidLayers (Layer b i n af op) (Layer b' i' n' af' op')) =>
-    Layer b i n af op ->
-    Layer b' i' n' af' op' ->
-    Network b '[Layer b i n af op, Layer b' i' n' af' op']
+    (CheckValidLayers (Layer i n af op) (Layer i' n' af' op')) =>
+    Layer i n af op ->
+    Layer i' n' af' op' ->
+    Network b '[Layer i n af op, Layer i' n' af' op']
 
 infixr 5 :>:
 
 infixr 6 :=>
 
 type family CheckValidLayers l1 l2 :: Constraint where
-  CheckValidLayers (Layer b i n af op) (Layer b n n' af' op') = ()
-  CheckValidLayers (Layer b i n af op) (Layer b i' n' af' op') = TypeError (MismatchedInputSizeErr n i')
-  CheckValidLayers (Layer b i n af op) (Layer b' n n' af' op') = TypeError (MismatchedBatchSizeErr b b')
-  CheckValidLayers (Layer b i n af op) (Layer b' i' n' af' op') = (If (NotEqualNat b b') (TypeError (MismatchedBatchSizeErr b b')) (If (NotEqualNat n i') (TypeError (MismatchedInputSizeErr n i')) (TypeError (InvalidNetworkConstructionErr b b' i i' n n' af af' op op'))))
+  CheckValidLayers (Layer i n af op) (Layer n n' af' op') = ()
+  CheckValidLayers (Layer i n af op) (Layer i' n' af' op') = TypeError (MismatchedInputSizeErr n i')
 
 type family NotEqualNat (n :: k) (n' :: k) :: Bool where
   NotEqualNat n n = 'True
@@ -36,8 +34,8 @@ type family If (b :: Bool) (t :: k) (f :: k) :: k where
   If 'True t f = t
   If 'False t f = f
 
-type InvalidNetworkConstructionErr b b' i i' n n' af af' op op' =
-  ('Text "Invalid network construction: " ':$$: 'Text " >>> [" :<>: 'ShowType (Layer b i n af op) :<>: 'Text "] " ':$$: 'Text " incompatible with " ':$$: 'Text " >>> [" :<>: 'ShowType (Layer b' i' n' af' op')) :<>: 'Text "] "
+type InvalidNetworkConstructionErr i i' n n' af af' op op' =
+  ('Text "Invalid network construction: " ':$$: 'Text " >>> [" :<>: 'ShowType (Layer i n af op) :<>: 'Text "] " ':$$: 'Text " incompatible with " ':$$: 'Text " >>> [" :<>: 'ShowType (Layer i' n' af' op')) :<>: 'Text "] "
     :$$: 'Text "Note: Check that your layers have the same batch size and that the expected inputs for each layer match the outputs of its previous layer."
 
 type MismatchedBatchSizeErr b b' =
