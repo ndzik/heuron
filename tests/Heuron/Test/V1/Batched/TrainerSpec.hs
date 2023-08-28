@@ -33,7 +33,7 @@ trainerSpec = do
         inputLayer ReLU (StochasticGradientDescent 1.0)
           :>: hiddenLayer00 ReLU (StochasticGradientDescent 1.0)
           :>: hiddenLayer01 Amplifier (StochasticGradientDescent 1.0)
-            =| outputLayer Softmax (StochasticGradientDescent 1.0)
+          =| outputLayer Softmax (StochasticGradientDescent 1.0)
   input <- randomM' @7 @6 rng
   truth <- randomM' @7 @3 rng
   -- TODO: Use a better type error when the construction of the nn is wrong.
@@ -45,9 +45,9 @@ trainerSpec = do
   --
   -- This happens when a layer with 4 neurons (thus having 4 outputs) is
   -- connected to a layer expecting 7 inputs.
-  (accuracy, s) <- runTrainer (oneEpoch input truth) $ TrainerState ann CategoricalCrossEntropy
+  (res, s) <- runTrainer (oneEpoch input truth) $ TrainerState ann CategoricalCrossEntropy
   -- TODO: Add some visualization helpers for networks.
   print "trainerSpec"
-  putStrLn $ printf "Accuracy: %.2f" $ show accuracy
+  putStrLn $ printf "Accuracy: %.2f" $ _trainingResultAccuracy res
   print "Network:"
   print $ s ^. network
