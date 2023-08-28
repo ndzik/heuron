@@ -129,6 +129,7 @@ test-suite heuron-test
                     , Heuron.Test.V1.Batched.ActivationSpec
                     , Heuron.Test.V1.Batched.TrainerSpec
                     , Heuron.Test.V1.Batched.LossSpec
+                    , Heuron.Test.V2.NetworkSpec
     hs-source-dirs:   tests
     default-extensions: TypeApplications
                         , DataKinds

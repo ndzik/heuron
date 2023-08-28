@@ -4,6 +4,7 @@ import Heuron.Test.V1.Batched.ActivationSpec
 import Heuron.Test.V1.Batched.BatchedSpec
 import Heuron.Test.V1.Batched.LossSpec
 import Heuron.Test.V1.Batched.TrainerSpec
+import Heuron.Test.V2.NetworkSpec
 
 main :: IO ()
 main = do
@@ -11,6 +12,7 @@ main = do
         [ batchedSpec,
           activationSpec,
           trainerSpec,
-          lossSpec
+          lossSpec,
+          compileTimeCheck
         ]
   sequence_ tests
