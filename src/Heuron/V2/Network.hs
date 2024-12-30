@@ -1,3 +1,4 @@
+{-# LANGUAGE StandaloneKindSignatures #-}
 {-# LANGUAGE UndecidableInstances #-}
 
 module Heuron.V2.Network where
@@ -8,12 +9,12 @@ import Heuron.V2.Layer
 
 data Network (b :: Nat) ls where
   (:>:) ::
-    (ThrowOnError (CheckValidLayers (Layer i n af op) (Layer i' n' af' op'))) =>
+    (CheckValidLayers (Layer i n af op) (Layer i' n' af' op')) =>
     Layer i n af op ->
     Network b (Layer i' n' af' op' ': ls) ->
     Network b (Layer i n af op ': Layer i' n' af' op' ': ls)
   (:=>) ::
-    (ThrowOnError (CheckValidLayers (Layer i n af op) (Layer i' n' af' op'))) =>
+    (CheckValidLayers (Layer i n af op) (Layer i' n' af' op')) =>
     Layer i n af op ->
     Layer i' n' af' op' ->
     Network b '[Layer i n af op, Layer i' n' af' op']
@@ -22,16 +23,18 @@ infixr 5 :>:
 
 infixr 6 :=>
 
-type family ThrowOnError (b :: k) :: Constraint where
-  ThrowOnError () = ()
-  ThrowOnError msg = TypeError msg
+-- type family ThrowOnError (b :: k) :: Constraint where
+--   ThrowOnError () = ()
+--   ThrowOnError msg = TypeError ('Text "Got heuron type error: " ':$$: msg)
 
-type family CheckValidLayers l1 l2 :: ErrorMessage where
+type CheckValidLayers :: * -> * -> Constraint
+type family CheckValidLayers l1 l2 where
   CheckValidLayers (Layer i n af op) (Layer i' n' af' op') = CheckCondition (ValidInputForwarding n i') (MismatchedInputSizeErr n i')
 
-type family CheckCondition (b :: Bool) (msg :: ErrorMessage) :: k where
+type CheckCondition :: Bool -> ErrorMessage -> Constraint
+type family CheckCondition (b :: Bool) msg where
   CheckCondition 'True _ = ()
-  CheckCondition 'False msg = msg
+  CheckCondition 'False msg = TypeError msg
 
 type family ValidInputForwarding n i :: Bool where
   ValidInputForwarding n n = 'True

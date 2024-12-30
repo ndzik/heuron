@@ -9,6 +9,7 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE UndecidableInstances #-}
 
 module V2Example where
@@ -52,7 +53,7 @@ pathToMNISTImage = "./data/train-images-idx3-ubyte"
 scaledBy :: (KnownNat n, KnownNat m) => Double -> Input n m Double -> Input n m Double
 scaledBy x = fmap (fmap (* x))
 
-executeV2Network :: forall pixelCount batchSize numOfImages hiddenNeuronCount. (hiddenNeuronCount ~ 16, pixelCount ~ 784, batchSize ~ 100, numOfImages ~ 57321) => IO ()
+executeV2Network :: forall pixelCount batchSize numOfImages hiddenNeuronCount. (hiddenNeuronCount ~ 16, pixelCount ~ 784, batchSize ~ 100, numOfImages ~ 60000) => IO ()
 executeV2Network = do
   rng <- newIOGenM (mkStdGen 42069)
 

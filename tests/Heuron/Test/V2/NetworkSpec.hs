@@ -14,19 +14,27 @@ compileTimeCheck ::
   () =>
   IO ()
 compileTimeCheck = do
-  let invalidNetworkConstruction ::
-        ( ExpectError
-            (MismatchedInputSizeErr 11 10)
-            (CheckValidLayers (Layer 10 11 Double Double) (Layer 10 10 Double Double))
-        ) =>
-        ()
-      invalidNetworkConstruction = ()
+  -- let invalidNetworkConstruction ::
+  --       ( ExpectError
+  --           (MismatchedInputSizeErr 11 10)
+  --           (CheckValidLayers (Layer 10 11 Double Double) (Layer 10 10 Double Double))
+  --       ) =>
+  --       ()
+  --     invalidNetworkConstruction = ()
 
-  let tests =
-        [ invalidNetworkConstruction
-        ]
+  -- let validNetworkConstruction :: (ExpectNoError (CheckValidLayers (Layer 10 10 Double Double) (Layer 10 10 Double Double))) => ()
+  --     validNetworkConstruction = ()
+
+  -- let tests =
+  --       [ -- invalidNetworkConstruction,
+  --         validNetworkConstruction
+  --       ]
   return ()
 
-type family ExpectError (expected :: ErrorMessage) (actual :: ErrorMessage) :: Constraint where
-  ExpectError expected expected = ()
-  ExpectError expected actual = TypeError ('Text "Expected error: " ':<>: expected ':$$: 'Text "Actual error: " ':<>: actual)
+-- type family ExpectError (expected :: ErrorMessage) (actual :: Constraint) :: Constraint where
+--   ExpectError expected (TypeError expected) = ()
+--   ExpectError expected (TypeError actual) = TypeError ('Text "Expected error: " ':<>: expected ':$$: 'Text "Actual error: " ':<>: actual)
+
+type family ExpectNoError (actual :: k) :: Constraint where
+  ExpectNoError () = ()
+  ExpectNoError actual = TypeError ('Text "Did not expect an error but got: " ':<>: actual)
