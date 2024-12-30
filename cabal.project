@@ -1,3 +1,8 @@
 packages: heuron.cabal
 
 test-show-details: streaming
+
+source-repository-package
+	type: git
+	location: https://github.com/fjvallarino/monomer
+	tag: a16e8599df5f3fda38333aff3c55fe357cbf70e7
