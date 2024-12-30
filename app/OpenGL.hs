@@ -12,6 +12,7 @@ module OpenGL (openGLWidget) where
 import Control.Lens ((&), (.~), (^.))
 import Control.Loop (numLoop, numLoopFold)
 import Control.Monad
+import Control.Monad.IO.Class (MonadIO (..))
 import Data.Default
 import Data.Typeable (cast)
 import Data.Vector (Vector, generate, singleton, (!))
@@ -85,7 +86,7 @@ makeOpenGLWidget initNet color state = widget
           -- This needs to run in render thread
           program <- createShaderProgram
 
-          let (_, _, numOfNeurons, _, _, numOfLines) = generateNetworkVectors wenv node initNet
+          let (neuronVertices, neuronElements, numOfNeurons, lineVertices, lineElements, numOfLines) = generateNetworkVectors wenv node initNet
 
           -- Load initial network nodes.
           vaoPtr <- malloc
@@ -95,6 +96,7 @@ makeOpenGLWidget initNet color state = widget
           glGenBuffers buffers vboPtr
           glGenBuffers buffers veoPtr
           colorLoc <- withCString "color" $ \bias -> glGetUniformLocation program bias
+          liftIO . print $ "Color location: " ++ show colorLoc
 
           -- Load initial network lines.
           lineVaoPtr <- malloc
@@ -103,6 +105,11 @@ makeOpenGLWidget initNet color state = widget
           glGenVertexArrays buffers lineVaoPtr
           glGenBuffers buffers lineVboPtr
           glGenBuffers buffers lineVeoPtr
+          liftIO . print $ "Line VAO: " ++ show lineVaoPtr
+
+          -- TODO: This should not be required, but w/e.
+          loadVertices (vaoPtr, vboPtr, veoPtr) neuronVertices neuronElements
+          loadVertices (lineVaoPtr, lineVboPtr, lineVeoPtr) lineVertices lineElements
 
           return $ OpenGLWidgetInit program numOfNeurons numOfLines lineVaoPtr lineVeoPtr lineVboPtr vaoPtr veoPtr vboPtr colorLoc
 
@@ -178,15 +185,15 @@ makeOpenGLWidget initNet color state = widget
 
 generateNetworkVectors :: WidgetEnv HeuronModel e -> WidgetNode HeuronModel e -> ViewNetwork -> (V.Vector Float, V.Vector GLuint, Int, V.Vector Float, V.Vector GLuint, Int)
 generateNetworkVectors wenv node initNet =
-  let networkOffset = 100
-      layerWidth = 300
+  let networkOffset = 50
+      layerWidth = 150
       winSize = wenv ^. L.windowSize
       offset = wenv ^. L.offset
       (neuronVertices, numOfNeurons, lineVertices, numOfLines) = numLoopFold 0 (DV.length layeredWeights - 1) (mempty, 0, mempty, 0) $ \(nsV, numNs, linesV, lineNs) layerIndex ->
         let numOfNeurons = DV.length (layeredWeights ! layerIndex)
             numOfInputs =
               if layerIndex == 0
-                then -- Ignore inputs to network, to many lines...
+                then -- Ignore inputs to network, too many lines...
                   1
                 else DV.length (layeredWeights ! layerIndex ! 0)
             (neuronVerticesI, linesToNeuronI) = numLoopFold 0 (numOfNeurons - 1) (mempty, mempty) $ \(vs, ls) neuronIndex ->
@@ -204,7 +211,7 @@ generateNetworkVectors wenv node initNet =
    in (neuronVertices, neuronElements, V.length neuronElements, lineVertices, lineElements, V.length lineElements)
   where
     layeredWeights = initNet ^. viewNetworkWeights
-    octagonRadius = 12
+    octagonRadius = 6
     neuronHeight = octagonRadius * 2 + 2
     style = currentStyle wenv node
     nodeVp = getContentArea node style
@@ -240,7 +247,7 @@ toVectorVAO (Size w h) (Point ox oy) points = vec
     py y = realToFrac $ (h / 2 - y - oy) / (h / 2)
     col c = realToFrac (fromIntegral c / 255)
     row (x, y) = [px x, py y, 0]
-    vec = V.fromList . concat $ row <$> points
+    vec = V.fromList (concatMap row points)
 
 toVectorEAO :: [GLuint] -> V.Vector GLuint
 toVectorEAO = V.fromList
@@ -321,6 +328,13 @@ drawVertices state vertices elements = do
     uintSize = sizeOf (undefined :: GLuint)
     OpenGLWidgetState _ _ shaderId lineVaoPtr lineVeoPtr lineVboPtr vaoPtr veoPtr vboPtr colorLoc numOfNeurons numOfLines = state
 
+checkGLError :: IO ()
+checkGLError = do
+  err <- glGetError
+  unless (err == GL_NO_ERROR) $
+    putStrLn $
+      "OpenGL Error: " ++ show err
+
 drawNetwork :: OpenGLWidgetState -> ViewNetwork -> IO ()
 drawNetwork state net = do
   let layeredWeights = net ^. viewNetworkWeights
@@ -340,7 +354,7 @@ drawNetwork state net = do
         let weight = layeredWeights ! layerIndex ! neuronIndex ! inputIndex
             numOfElements = 2
         void $ loadEdgeColor weight colorLoc
-        glDrawElements GL_LINES numOfElements GL_UNSIGNED_INT (nullPtr `plusPtr` (uintSize * fromIntegral numOfElements * (n + numOfNeuronsInLayer + neuronIndex * numOfInputs + inputIndex)))
+        glDrawElements GL_LINES numOfElements GL_UNSIGNED_INT (nullPtr `plusPtr` (uintSize * fromIntegral numOfElements * (n + numOfNeuronsInLayer + inputIndex)))
 
       -- Draw neuron node.
       peek vaoPtr >>= glBindVertexArray
@@ -352,6 +366,7 @@ drawNetwork state net = do
           (r, g, b) = mapColorValues (realToFrac . (*) (1 / 100 * bias) . fromIntegral) lime
       glUniform3f colorLoc r g b
       glDrawElements GL_TRIANGLES numOfElements GL_UNSIGNED_INT (nullPtr `plusPtr` (uintSize * fromIntegral numOfElements * (n + neuronIndex)))
+      return ()
     return (n + numOfNeuronsInLayer)
   where
     uintSize = sizeOf (undefined :: GLuint)
