@@ -107,7 +107,6 @@ makeOpenGLWidget initNet color state = widget
           glGenBuffers buffers lineVeoPtr
           liftIO . print $ "Line VAO: " ++ show lineVaoPtr
 
-          -- TODO: This should not be required, but w/e.
           loadVertices (vaoPtr, vboPtr, veoPtr) neuronVertices neuronElements
           loadVertices (lineVaoPtr, lineVboPtr, lineVeoPtr) lineVertices lineElements
 
@@ -153,7 +152,7 @@ makeOpenGLWidget initNet color state = widget
     handleMessage wenv node target msg = case cast msg of
       Just (OpenGLWidgetInit shaderId numOfNeurons numOfLines lineVao lineVeo lineVbo vao veo vbo colorLoc) -> Just result
         where
-          newState = state {_ogsLoaded = True, _ogsShaderId = shaderId, _ogsLineVao = lineVao, _ogsLineVeo = lineVeo, _ogsLineVbo = lineVbo, _ogsVao = vao, _ogsVeo = veo, _ogsVbo = vbo, _ogsNumOfNeurons = numOfNeurons, _ogsNumOfLines = numOfLines}
+          newState = state {_ogsLoaded = True, _ogsShaderId = shaderId, _ogsLineVao = lineVao, _ogsLineVeo = lineVeo, _ogsLineVbo = lineVbo, _ogsVao = vao, _ogsVeo = veo, _ogsVbo = vbo, _ogsNumOfNeurons = numOfNeurons, _ogsNumOfLines = numOfLines, _ogsNetworkLoaded = False}
           newNode =
             node
               & L.widget .~ makeOpenGLWidget initNet color newState
