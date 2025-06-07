@@ -122,6 +122,153 @@ them abstract enough to allow different net-generation backends. E.g. it should 
 to let this library generate a GPU optimized neural net for training and a CPU/FPGA targeted
 software net for execution. All with the same code.
 
+We currently have the following API (not finalized):
+
+```haskell
+  -- Describe network.
+  let learningRate = 0.25
+  inputLayer <- mkLayer @batchSize $ do
+    inputs @pixelCount
+    neuronsWith @hiddenNeuronCount $ weightsScaledBy (1 / 784)
+    activationFunction ReLU
+    optimizerFunction (StochasticGradientDescent learningRate)
+
+  [hiddenLayer00] <- mkLayers 1 $ do
+    neuronsWith @hiddenNeuronCount $ weightsScaledBy (1 / 16)
+    activationFunction ReLU
+    optimizerFunction (StochasticGradientDescent learningRate)
+
+  resBlock <- Residual.mkBlock $ do
+    inputLayer <- mkLayer $ do
+      inputs @hiddenNeuronCount
+      neuronsWith @hiddenNeuronCount $ weightsScaledBy (1 / 32)
+      optimizerFunction (StochasticGradientDescent learningRate)
+
+    [hiddenLayer00, hiddenLayer01, hiddenLayer02] <- mkLayers 2 $ do
+      neuronsWith @hiddenNeuronCount $ weightsScaledBy (1 / 16)
+      activationFunction ReLU
+      optimizerFunction (StochasticGradientDescent learningRate)
+
+    dropL <- Drop.mkLayer 0.25
+
+    outputLayer <- mkLayer $ do
+      neurons @hiddenNeuronCount
+      activationFunction Softmax
+      optimizerFunction (StochasticGradientDescent learningRate)
+
+    return $ inputLayer :>: hiddenLayer00 :>: dropL :>: hiddenLayer01 :>: hiddenLayer02 :=> outputLayer
+
+  outputLayer <- mkLayer $ do
+    neurons @10
+    activationFunction Softmax
+    optimizerFunction (StochasticGradientDescent learningRate)
+
+  let ann = inputLayer :>: resBlock :>: hiddenLayer00 :=> outputLayer
+  haskellAnn <- Backend.runHaskell (Backend.HaskellBackendState rng) $ Backend.translate ann
+```
+
+Asking GHC for the type of `ann` results in:
+
+```haskell
+ann :: Network
+  batchSize
+  '[Layer
+      batchSize
+      pixelCount
+      hiddenNeuronCount
+      (LinearLayer
+         pixelCount hiddenNeuronCount ReLU StochasticGradientDescent),
+    Layer
+      batchSize
+      16
+      16
+      (Block
+         batchSize
+         '[Layer
+             batchSize
+             hiddenNeuronCount
+             hiddenNeuronCount
+             (LinearLayer
+                hiddenNeuronCount hiddenNeuronCount Any StochasticGradientDescent),
+           Layer
+             batchSize
+             hiddenNeuronCount
+             hiddenNeuronCount
+             (LinearLayer
+                hiddenNeuronCount
+                hiddenNeuronCount
+                ReLU
+                StochasticGradientDescent),
+           Layer batchSize 16 16 (Drop batchSize 16),
+           Layer
+             batchSize
+             hiddenNeuronCount
+             hiddenNeuronCount
+             (LinearLayer
+                hiddenNeuronCount
+                hiddenNeuronCount
+                ReLU
+                StochasticGradientDescent),
+           Layer
+             batchSize
+             hiddenNeuronCount
+             hiddenNeuronCount
+             (LinearLayer
+                hiddenNeuronCount
+                hiddenNeuronCount
+                ReLU
+                StochasticGradientDescent),
+           Layer
+             batchSize
+             16
+             hiddenNeuronCount
+             (LinearLayer
+                16 hiddenNeuronCount Softmax StochasticGradientDescent)]
+         Any
+         Any),
+    Layer
+      batchSize
+      hiddenNeuronCount
+      hiddenNeuronCount
+      (LinearLayer
+         hiddenNeuronCount
+         hiddenNeuronCount
+         ReLU
+         StochasticGradientDescent),
+    Layer
+      batchSize
+      16
+      10
+      (LinearLayer 16 10 Softmax StochasticGradientDescent)]
+```
+
+GHCs constraint solver guarentees that the network is correct by construction. `ann` is a general
+description of a network and can be extended on the user-side with custom layers doing arbitrary
+logic if the basic building blocks are not enough.
+
+The fact that this is a *general description* results in a rather bloated type with lots of
+redundancy (mind the `Layer batchSize inputSize outputSize`) which preceed every concrete layer
+definition. I don't know if there is a way around that.
+
+The `Backend.runHaskell` is a static interpreter which _generates Haskell_ on the fly at compile
+time reducing the general network concretizing it like, in this case:
+
+```haskell
+haskellAnn :: Network
+  100
+  '[Layer 100 784 16 ReLU StochasticGradientDescent,
+    Layer 100 16 16 Any Any,
+    Layer 100 16 16 ReLU StochasticGradientDescent,
+    Layer 100 16 10 Softmax StochasticGradientDescent]
+```
+
+`Layer 100 16 16 Any Any` is a placeholder, since I did not yet come around implementing the
+`Residual.Block` translator.
+
+This should provide a basic framework to do anything. For example: I will probably write a 
+`PyTorch` backend, which generates simple Python code. This way I do not reinvent the wheels
+and instead be piggybacked by a trusted, battle-tested implementation.
+
 ## FAQ
 
 **Q:** Why do you do this if there are things like TensorFlow, PyTorch, etc.?
