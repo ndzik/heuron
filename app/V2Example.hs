@@ -33,6 +33,8 @@ import Heuron.V1.Batched.Trainer (TrainerState (..))
 import Heuron.V2
 import qualified Heuron.V2.Backend as Backend
 import qualified Heuron.V2.Backend.Haskell as Backend
+import qualified Heuron.V2.Drop as Drop
+import qualified Heuron.V2.Residual as Residual
 import Linear.V
 import Monomer
 import Streaming (liftIO)
@@ -59,7 +61,7 @@ executeV2Network = do
 
   -- Describe network.
   let learningRate = 0.25
-  inputLayer <- mkLayer $ do
+  inputLayer <- mkLayer @batchSize $ do
     inputs @pixelCount
     neuronsWith @hiddenNeuronCount $ weightsScaledBy (1 / 784)
     activationFunction ReLU
@@ -70,7 +72,7 @@ executeV2Network = do
     activationFunction ReLU
     optimizerFunction (StochasticGradientDescent learningRate)
 
-  resBlock <- mkBlock @batchSize $ do
+  resBlock <- Residual.mkBlock $ do
     inputLayer <- mkLayer $ do
       inputs @hiddenNeuronCount
       neuronsWith @hiddenNeuronCount $ weightsScaledBy (1 / 32)
@@ -81,12 +83,14 @@ executeV2Network = do
       activationFunction ReLU
       optimizerFunction (StochasticGradientDescent learningRate)
 
+    dropL <- Drop.mkLayer 0.25
+
     outputLayer <- mkLayer $ do
       neurons @hiddenNeuronCount
       activationFunction Softmax
       optimizerFunction (StochasticGradientDescent learningRate)
 
-    return $ inputLayer :>: hiddenLayer00 :>: hiddenLayer01 :>: hiddenLayer02 :=> outputLayer
+    return $ inputLayer :>: hiddenLayer00 :>: dropL :>: hiddenLayer01 :>: hiddenLayer02 :=> outputLayer
 
   outputLayer <- mkLayer $ do
     neurons @10
@@ -94,9 +98,9 @@ executeV2Network = do
     optimizerFunction (StochasticGradientDescent learningRate)
 
   let ann = inputLayer :>: resBlock :>: hiddenLayer00 :=> outputLayer
+  haskellAnn <- Backend.runHaskell (Backend.HaskellBackendState rng) $ Backend.translate ann
   print "Glorious ANN"
   where
-    -- haskellAnn <- Backend.runHaskell (Backend.HaskellBackendState rng) $ Backend.translate ann
     -- let initialTrainerState = TrainerState haskellAnn CategoricalCrossEntropy
 
     -- let producer env sendMsg = do

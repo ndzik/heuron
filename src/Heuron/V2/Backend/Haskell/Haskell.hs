@@ -11,7 +11,7 @@ import Control.Monad.IO.Class
 import Control.Monad.RWS
 import Control.Monad.State (StateT, evalStateT, lift)
 import Data.Default
-import Data.Kind (Constraint)
+import Data.Kind (Constraint, Type)
 import GHC.TypeLits
 import Heuron.Functions
 import qualified Heuron.V1 as V1
@@ -19,8 +19,10 @@ import qualified Heuron.V1.Batched as V1
 import qualified Heuron.V1.Batched.Layer.Layer as V1
 import Heuron.V2.Backend.Haskell.State
 import Heuron.V2.Backend.Translator
+import qualified Heuron.V2.Drop as Drop
 import Heuron.V2.Layer
 import Heuron.V2.Network
+import qualified Heuron.V2.Residual as Residual
 
 -- | The Haskell backend is a software based backend which uses the CPU to
 -- train and infer neural networks.
@@ -30,58 +32,85 @@ newtype Haskell a = Haskell {unBackend :: StateT HaskellBackendState IO a}
 runHaskell :: HaskellBackendState -> Haskell a -> IO a
 runHaskell s = flip evalStateT s . unBackend
 
+class TranslateLayer b i n l where
+  type LayerActivation l :: Type
+  type LayerOp l :: Type
+
+  translateLayerImpl :: Layer b i n l -> Haskell (V1.Layer b i n (LayerActivation l) (LayerOp l))
+
 type family TranslateNetwork n where
   TranslateNetwork (Network b '[]) = V1.Network b '[]
   TranslateNetwork (Network b ls) = V1.Network b (MatchLayers (Network b ls))
 
 type family MatchLayers n where
   MatchLayers (Network b '[]) = '[]
-  MatchLayers (Network b (LinearLayer i n af op ': ls)) = V1.Layer b i n af op ': MatchLayers (Network b ls)
+  MatchLayers (Network b (Layer b i n l ': ls)) = V1.Layer b i n (LayerActivation l) (LayerOp l) ': MatchLayers (Network b ls)
 
 type KnownNatConstraint b i i' n n' = (KnownNat b, KnownNat i, KnownNat i', KnownNat n, KnownNat n')
 
--- -- Type-Level recursion ends here.
--- instance
---   (KnownNatConstraint b i i' n n') =>
---   Translatable Haskell (Network b '[LayerKind i n l, LayerKind i' n' l'])
---   where
---   type
---     TargetStructure Haskell (Network b '[LayerKind i n l, LayerKind i' n' l']) =
---       TranslateNetwork (Network b '[LayerKind i n l, LayerKind i' n' l'])
---
---   translate (l1 :=> l2) = do
---     v1L1 <- translateLayer @b l1
---     v1L2 <- translateLayer @b l2
---     pure $ v1L1 V1.:>: v1L2 V1.:>: V1.NetworkEnd
---     where
---       v1L1 = translateLayer @b l1
---       v1L2 = translateLayer @b l2
+instance (KnownNat i, KnownNat n, KnownNat b) => TranslateLayer b i n (LinearLayer i n af op) where
+  type LayerActivation (LinearLayer i n af op) = af
+  type LayerOp (LinearLayer i n af op) = op
 
--- -- Type-Level recursion starts and continues here.
--- instance
---   (KnownNat b, KnownNat i, KnownNat n, Translatable Haskell (Network b (l1 ': l2 ': ls))) =>
---   -- We have to explicitly match the number of layers here, otherwise the
---   -- compiler does not know which instance to use.
---   Translatable Haskell (Network b (Layer i n af op ': l1 ': l2 ': ls))
---   where
---   type
---     TargetStructure Haskell (Network b (Layer i n af op ': l1 ': l2 ': ls)) =
---       TranslateNetwork (Network b (Layer i n af op ': l1 ': l2 ': ls))
---
---   -- Catch end of recursion here.
---   translate (l0 :>: l1 :=> ls) = (V1.:>:) <$> translateLayer @b l0 <*> translate (l1 :=> ls)
---   -- We also have to explicitly match the number of layers here, otherwise the
---   -- instance cannot be resolved for `Translatable Haskell (Network net)`.
---   translate (l0 :>: l1 :>: l2 :>: ls) = (V1.:>:) <$> translateLayer @b l0 <*> translate (l1 :>: l2 :>: ls)
+  translateLayerImpl (Linear (LinearLayer af op mods)) = do
+    rng <- use backendRng
+    ws <- lift' $ V1.randomMS @n @i rng
+    bs <- lift' $ V1.randomVS @n rng
+    runModifiers mods $ V1.Layer ws bs zero af op
+    where
+      lift' = Haskell . lift
 
-translateLayer :: forall b i n af op. (KnownNat i, KnownNat n, KnownNat b) => LinearLayer i n af op -> Haskell (V1.Layer b i n af op)
-translateLayer (LinearLayer af op mods) = do
-  rng <- use backendRng
-  ws <- lift' $ V1.randomMS @n @i rng
-  bs <- lift' $ V1.randomVS @n rng
-  runModifiers mods $ V1.Layer ws bs zero af op
+instance (KnownNat i, KnownNat n, KnownNat b) => TranslateLayer b i n (Residual.Block b ls af op) where
+  type LayerActivation (Residual.Block b ls af op) = af
+  type LayerOp (Residual.Block b ls af op) = op
+  translateLayerImpl (Residual.Residual (Residual.Block net af op)) = do
+    undefined
+
+instance (KnownNat i, KnownNat n, KnownNat b, i ~ n) => TranslateLayer b i n (Drop.Drop b i) where
+  type LayerActivation (Drop.Drop b i) = ()
+  type LayerOp (Drop.Drop b i) = ()
+  translateLayerImpl (Drop.DropLayer (Drop.Drop prob)) = do
+    undefined
+
+-- Type-Level recursion ends here.
+instance
+  (KnownNatConstraint b i i' n n', TranslateLayer b i n l, TranslateLayer b i' n' l') =>
+  Translatable Haskell (Network b '[Layer b i n l, Layer b i' n' l'])
   where
-    lift' = Haskell . lift
+  type
+    TargetStructure Haskell (Network b '[Layer b i n l, Layer b i' n' l']) =
+      TranslateNetwork (Network b '[Layer b i n l, Layer b i' n' l'])
+
+  translate (l1 :=> l2) = do
+    v1L1 <- translateLayer l1
+    v1L2 <- translateLayer l2
+    let net = v1L1 V1.:>: v1L2 V1.:>: V1.NetworkEnd
+    pure net
+
+-- Type-Level recursion starts and continues here.
+instance
+  ( KnownNat b,
+    KnownNat i,
+    KnownNat n,
+    TranslateLayer b i n l,
+    Translatable Haskell (Network b (l1 ': l2 ': ls))
+  ) =>
+  -- We have to explicitly match the number of layers here, otherwise the
+  -- compiler does not know which instance to use.
+  Translatable Haskell (Network b (Layer b i n l ': l1 ': l2 ': ls))
+  where
+  type
+    TargetStructure Haskell (Network b (Layer b i n l ': l1 ': l2 ': ls)) =
+      TranslateNetwork (Network b (Layer b i n l ': l1 ': l2 ': ls))
+
+  -- Catch end of recursion here.
+  translate (l0 :>: l1 :=> ls) = (V1.:>:) <$> translateLayer l0 <*> translate (l1 :=> ls)
+  -- We also have to explicitly match the number of layers here, otherwise the
+  -- instance cannot be resolved for `Translatable Haskell (Network net)`.
+  translate (l0 :>: l1 :>: l2 :>: ls) = (V1.:>:) <$> translateLayer l0 <*> translate (l1 :>: l2 :>: ls)
+
+translateLayer :: forall b i n l. (KnownNat i, KnownNat n, KnownNat b, TranslateLayer b i n l) => Layer b i n l -> Haskell (V1.Layer b i n (LayerActivation l) (LayerOp l))
+translateLayer = translateLayerImpl
 
 runModifiers ::
   (KnownNat b, KnownNat i, KnownNat n) =>

@@ -37,7 +37,7 @@ mkLayers ::
   m [Layer b n n (LinearLayer n n af op)]
 mkLayers n = replicateM n . mkLayer
 
-mkLayer :: forall i b n m af op. (KnownNat i, KnownNat n, Monad m) => LayerT i n af op m () -> m (Layer b i n (LinearLayer i n af op))
+mkLayer :: forall b i n m af op. (KnownNat i, KnownNat n, Monad m) => LayerT i n af op m () -> m (Layer b i n (LinearLayer i n af op))
 mkLayer builder = evalStateT (builder >> initialize) def
   where
     initialize = do

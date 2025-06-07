@@ -46,6 +46,7 @@ library
                     , Heuron.V2.Network
                     , Heuron.V2.Layer
                     , Heuron.V2.Residual
+                    , Heuron.V2.Drop
                     , Heuron.V2.Backend
                     , Heuron.V2.Backend.Haskell
                     , Heuron.V2.Backend.Haskell.Haskell
