@@ -45,6 +45,7 @@ library
                     , Heuron.V2
                     , Heuron.V2.Network
                     , Heuron.V2.Layer
+                    , Heuron.V2.Residual
                     , Heuron.V2.Backend
                     , Heuron.V2.Backend.Haskell
                     , Heuron.V2.Backend.Haskell.Haskell
@@ -67,7 +68,7 @@ library
                       , TypeApplications
                       , TypeFamilies
                     , TypeOperators
-    build-depends:    base ^>=4.17
+    build-depends:    base
                     , mtl
                     , lens
                     , number
@@ -95,7 +96,7 @@ executable heuron-exe
     -- LANGUAGE extensions used by modules in this package.
     -- other-extensions:
     build-depends:
-        base ^>=4.17,
+        base,
         heuron,
         plots,
         diagrams-core,
@@ -134,7 +135,7 @@ test-suite heuron-test
     default-extensions: TypeApplications
                         , DataKinds
     main-is:          Main.hs
-    build-depends:    base ^>=4.17
+    build-depends:    base
                     , heuron
                     , random
                     , lens

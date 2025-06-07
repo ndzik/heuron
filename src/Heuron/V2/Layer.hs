@@ -6,7 +6,13 @@ import Data.Default
 import Data.Maybe
 import GHC.TypeLits
 
-data Layer (i :: Nat) (n :: Nat) af op = Layer af op [ModifierAction i n]
+type LayerSpec = *
+
+data family Layer (b :: Nat) (i :: Nat) (n :: Nat) (l :: LayerSpec)
+
+data LinearLayer (i :: Nat) (n :: Nat) af op = LinearLayer af op [ModifierAction i n]
+
+newtype instance Layer (b :: Nat) (i :: Nat) (n :: Nat) (LinearLayer i n af op) = Linear (LinearLayer i n af op)
 
 type LayerT (i :: Nat) (n :: Nat) af op m a = StateT (LayerBuilderState i n af op) m a
 
@@ -24,20 +30,20 @@ instance Default (LayerBuilderState i n af op) where
 makeLenses ''LayerBuilderState
 
 mkLayers ::
-  forall i n af op m.
-  (KnownNat i, KnownNat n, Monad m) =>
+  forall n b af op m.
+  (KnownNat n, Monad m) =>
   Int ->
-  LayerT i n af op m () ->
-  m [Layer i n af op]
+  LayerT n n af op m () ->
+  m [Layer b n n (LinearLayer n n af op)]
 mkLayers n = replicateM n . mkLayer
 
-mkLayer :: (KnownNat i, KnownNat n, Monad m) => LayerT i n af op m () -> m (Layer i n af op)
+mkLayer :: forall i b n m af op. (KnownNat i, KnownNat n, Monad m) => LayerT i n af op m () -> m (Layer b i n (LinearLayer i n af op))
 mkLayer builder = evalStateT (builder >> initialize) def
   where
     initialize = do
       af <- use layerAf >>= maybe (error "no activation function set") pure
       op <- use layerOp >>= maybe (error "no optimizer set") pure
-      Layer af op <$> use layerModifierActions
+      Linear . LinearLayer af op <$> use layerModifierActions
 
 inputs :: forall i n af op m. (KnownNat i, Monad m) => LayerT i n af op m ()
 inputs = return ()

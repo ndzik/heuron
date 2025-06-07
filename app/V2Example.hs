@@ -70,48 +70,68 @@ executeV2Network = do
     activationFunction ReLU
     optimizerFunction (StochasticGradientDescent learningRate)
 
+  resBlock <- mkBlock @batchSize $ do
+    inputLayer <- mkLayer $ do
+      inputs @hiddenNeuronCount
+      neuronsWith @hiddenNeuronCount $ weightsScaledBy (1 / 32)
+      optimizerFunction (StochasticGradientDescent learningRate)
+
+    [hiddenLayer00, hiddenLayer01, hiddenLayer02] <- mkLayers 2 $ do
+      neuronsWith @hiddenNeuronCount $ weightsScaledBy (1 / 16)
+      activationFunction ReLU
+      optimizerFunction (StochasticGradientDescent learningRate)
+
+    outputLayer <- mkLayer $ do
+      neurons @hiddenNeuronCount
+      activationFunction Softmax
+      optimizerFunction (StochasticGradientDescent learningRate)
+
+    return $ inputLayer :>: hiddenLayer00 :>: hiddenLayer01 :>: hiddenLayer02 :=> outputLayer
+
   outputLayer <- mkLayer $ do
     neurons @10
     activationFunction Softmax
     optimizerFunction (StochasticGradientDescent learningRate)
 
-  let ann = inputLayer :>: hiddenLayer00 :=> outputLayer
-  haskellAnn <- Backend.runHaskell (Backend.HaskellBackendState rng) $ Backend.translate ann
-  let initialTrainerState = TrainerState haskellAnn CategoricalCrossEntropy
-
-  let producer env sendMsg = do
-        -- Train network.
-        labels <- streamMNISTLabels pathToMNISTLabel
-        imgs <- streamMNISTImages @pixelCount pathToMNISTImage
-        let s = streamOfSize @batchSize $ S.zip labels imgs
-            trainNetwork (ts, epoch) (labels, images) = do
-              (tr, ts') <- liftIO $ runTrainer (oneEpoch images labels) ts
-              liftIO . sendMsg . HeuronUpdate $ UpdateEvent (tr ^. trainingResultLoss) (tr ^. trainingResultAccuracy) epoch (ts' ^. network . to viewNetFromHeuronNet)
-              return (ts', epoch + 1)
-
-        print "Starting training..."
-        _res <- runExceptT $ S.foldM_ trainNetwork (pure (initialTrainerState, 0)) pure s
-        print "Done training."
-
-  let config =
-        [ appWindowTitle "Heuron",
-          appTheme darkTheme,
-          appScaleFactor 1.5,
-          appFontDef
-            "Regular"
-            "./resources/Hasklig-Regular.otf",
-          appInitEvent HeuronInit
-        ]
-      model =
-        HeuronModel
-          { _heuronModelNet = viewNetFromHeuronNet haskellAnn,
-            _heuronModelAvgLoss = 0.00,
-            _heuronModelAccuracy = 0.00,
-            _heuronModelCurrentEpoch = 0,
-            _heuronModelMaxEpochs = maxEpochs
-          }
-  startApp model (handleEvent producer) buildUI config
+  let ann = inputLayer :>: resBlock :>: hiddenLayer00 :=> outputLayer
+  print "Glorious ANN"
   where
+    -- haskellAnn <- Backend.runHaskell (Backend.HaskellBackendState rng) $ Backend.translate ann
+    -- let initialTrainerState = TrainerState haskellAnn CategoricalCrossEntropy
+
+    -- let producer env sendMsg = do
+    --       -- Train network.
+    --       labels <- streamMNISTLabels pathToMNISTLabel
+    --       imgs <- streamMNISTImages @pixelCount pathToMNISTImage
+    --       let s = streamOfSize @batchSize $ S.zip labels imgs
+    --           trainNetwork (ts, epoch) (labels, images) = do
+    --             (tr, ts') <- liftIO $ runTrainer (oneEpoch images labels) ts
+    --             liftIO . sendMsg . HeuronUpdate $ UpdateEvent (tr ^. trainingResultLoss) (tr ^. trainingResultAccuracy) epoch (ts' ^. network . to viewNetFromHeuronNet)
+    --             return (ts', epoch + 1)
+
+    --       print "Starting training..."
+    --       _res <- runExceptT $ S.foldM_ trainNetwork (pure (initialTrainerState, 0)) pure s
+    --       print "Done training."
+
+    -- let config =
+    --       [ appWindowTitle "Heuron",
+    --         appTheme darkTheme,
+    --         appScaleFactor 1.5,
+    --         appFontDef
+    --           "Regular"
+    --           "./resources/Hasklig-Regular.otf",
+    --         appInitEvent HeuronInit
+    --       ]
+    --     model =
+    --       HeuronModel
+    --         { _heuronModelNet = viewNetFromHeuronNet haskellAnn,
+    --           _heuronModelAvgLoss = 0.00,
+    --           _heuronModelAccuracy = 0.00,
+    --           _heuronModelCurrentEpoch = 0,
+    --           _heuronModelMaxEpochs = maxEpochs
+    --         }
+    -- startApp model (handleEvent producer) buildUI config
+
     maxEpochs = natVal (Proxy @numOfImages) `div` natVal (Proxy @batchSize)
 
 handleEvent ::
