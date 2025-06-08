@@ -29,8 +29,11 @@ type BlockT (b :: Nat) (i :: Nat) (n :: Nat) af op m a = StateT (BlockBuilderSta
 
 type CheckCompatibleOutput :: * -> * -> Constraint
 type family CheckCompatibleOutput l ls where
-  CheckCompatibleOutput (Layer b i n l) (Layer b i' n l') = ()
-  CheckCompatibleOutput (Layer b i n l) (Layer b' i' n' l') = TypeError ('Text "Invalid output layer dimension, expecting: " ':<>: 'ShowType n ':<>: 'Text " outputs, but underlying network has output: " ':<>: 'ShowType n')
+  CheckCompatibleOutput (Layer b i n l) (Layer b i' n' l') = (n ~ n')
+
+type CheckCompatibleInput :: * -> * -> Constraint
+type family CheckCompatibleInput l ls where
+  CheckCompatibleInput (Layer b i n l) (Layer b i' n' l') = (i ~ i')
 
 makeLenses ''BlockBuilderState
 
@@ -41,6 +44,7 @@ mkBlock ::
     KnownNat n,
     Monad m,
     Network.CheckValidLayers (Layer b i n (ResidualBlock b ls af op)) (Network.InputLayerOfNetwork ls),
+    CheckCompatibleInput (Layer b i n (ResidualBlock b ls af op)) (Network.InputLayerOfNetwork ls),
     CheckCompatibleOutput (Layer b i n (ResidualBlock b ls af op)) (Network.OutputLayerOfNetwork ls)
   ) =>
   BlockT b i n af op m (Network.Network b ls) ->

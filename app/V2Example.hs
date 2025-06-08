@@ -77,7 +77,6 @@ executeV2Network = do
     Residual.activationFunction ReLU
     Residual.optimizerFunction (StochasticGradientDescent learningRate)
     inputLayer <- mkLayer $ do
-      inputs @hiddenNeuronCount
       neuronsWith @hiddenNeuronCount $ weightsScaledBy (1 / 32)
       activationFunction ReLU
       optimizerFunction (StochasticGradientDescent learningRate)

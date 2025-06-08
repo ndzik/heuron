@@ -252,6 +252,70 @@ GHCs constraint solver guarentees that the network is correct by construction. `
 description of a network and can be extended on the user-side with custom layers doing arbitrary
 logic if the basic building blocks are not enough.
 
+## Correct by construction
+
+Let's say I manually constrain my `ResidualBlock` to expect a certain input dimensionality, instead
+of letting GHC automagically derive
+
+```
+  resBlock <- Residual.mkBlock $ do
+    Residual.activationFunction ReLU
+    Residual.optimizerFunction (StochasticGradientDescent learningRate)
+    Residual.inputs @420
+    -- ^ I manually restrict the inputs for the ResidualBlock to be `420`.
+    inputLayer <- mkLayer $ do
+      -- inputs @hiddenNeuronCount
+      -- ^ This is not required, the constraint solver will unify the expected
+      --   input dimension with what is required by the network. One can still
+      --   be explicit in his actions and tell GHC what to do.
+      neuronsWith @hiddenNeuronCount $ weightsScaledBy (1 / 32)
+      activationFunction ReLU
+      optimizerFunction (StochasticGradientDescent learningRate)
+
+    [hiddenLayer00, hiddenLayer01, hiddenLayer02] <- mkLayers 3 $ do
+      neuronsWith @hiddenNeuronCount $ weightsScaledBy (1 / 16)
+      activationFunction ReLU
+      optimizerFunction (StochasticGradientDescent learningRate)
+
+    dropL <- Drop.mkLayer 0.25
+
+    outputLayer <- mkLayer $ do
+      neurons @hiddenNeuronCount
+      activationFunction Softmax
+      optimizerFunction (StochasticGradientDescent learningRate)
+
+    return $ inputLayer :>: hiddenLayer00 :>: dropL :>: hiddenLayer01 :>: hiddenLayer02 :=> outputLayer
+```
+
+I added two comments, the first one below `Residual.inputs @420` will let GHC complain:
+
+```haskell
+Diagnostics:
+1. • Mismatched input size: 16 /= 420
+     Note: You are trying to pipe the output of a layer with 16 neurons into a layer which expects 420 inputs.
+``` 
+
+Notably, this error is emitted where the layer is defined. Furthermore, when we write the network construction
+where each layer occupies its own line:
+
+```haskell
+  let ann =
+        inputLayer
+          :>: resBlock -- <- Another error is emitted here (I know which layer is problemantic).
+          :>: hiddenLayer00
+          :=> outputLayer
+      code = Torch.runPyTorch ann
+```
+
+with the error:
+
+```haskell
+Diagnostics:
+1. • Couldn't match type ‘16’ with ‘420’ arising from a use of ‘:>:’
+```
+
+This should provide enough information to pinpoint the culprit and fix any issues.
+
 The fact that this is a *general description* results in a rather bloated type with lots of
 redundancy (mind the `Layer batchSize inputSize outputSize`) which preceed every concrete layer
 definition. I don't know if there is a way around that.
@@ -341,6 +405,11 @@ class Model(nn.Module):
 
 There is still some work to do, but the basic idea and functionality is there for a
 correct by construction neural network description via Haskell.
+
+# Haskell.V3
+
+V2 together with the PyTorch approach seems like a solid foundation, I still have to iron out some
+usage pattern and type constraints to make the use more ergonomic.
 
 ## FAQ
 
