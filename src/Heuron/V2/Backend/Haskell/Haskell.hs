@@ -60,16 +60,16 @@ instance (KnownNat i, KnownNat n, KnownNat b) => TranslateLayer b i n (LinearLay
     where
       lift' = Haskell . lift
 
-instance (KnownNat i, KnownNat n, KnownNat b) => TranslateLayer b i n (Residual.Block b ls af op) where
-  type LayerActivation (Residual.Block b ls af op) = af
-  type LayerOp (Residual.Block b ls af op) = op
-  translateLayerImpl (Residual.Residual (Residual.Block net af op)) = do
+instance (KnownNat i, KnownNat n, KnownNat b) => TranslateLayer b i n (Residual.ResidualBlock b ls af op) where
+  type LayerActivation (Residual.ResidualBlock b ls af op) = af
+  type LayerOp (Residual.ResidualBlock b ls af op) = op
+  translateLayerImpl (Residual.Residual (Residual.ResidualBlock net af op)) = do
     undefined
 
-instance (KnownNat i, KnownNat n, KnownNat b, i ~ n) => TranslateLayer b i n (Drop.Drop b i) where
-  type LayerActivation (Drop.Drop b i) = ()
-  type LayerOp (Drop.Drop b i) = ()
-  translateLayerImpl (Drop.DropLayer (Drop.Drop prob)) = do
+instance (KnownNat i, KnownNat n, KnownNat b, i ~ n) => TranslateLayer b i n (Drop.DropLayer b i) where
+  type LayerActivation (Drop.DropLayer b i) = ()
+  type LayerOp (Drop.DropLayer b i) = ()
+  translateLayerImpl (Drop.Drop (Drop.DropLayer prob)) = do
     undefined
 
 -- Type-Level recursion ends here.

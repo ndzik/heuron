@@ -3,9 +3,9 @@ module Heuron.V2.Drop where
 import GHC.TypeLits
 import Heuron.V2.Layer
 
-newtype Drop (b :: Nat) (i :: Nat) = Drop Double
+newtype DropLayer (b :: Nat) (i :: Nat) = DropLayer Double
 
-newtype instance Layer (b :: Nat) (i :: Nat) (i :: Nat) (Drop b i) = DropLayer (Drop b i)
+newtype instance Layer (b :: Nat) (i :: Nat) (i :: Nat) (DropLayer b i) = Drop (DropLayer b i)
 
-mkLayer :: (Monad m, KnownNat b, KnownNat i) => Double -> m (Layer b i i (Drop b i))
-mkLayer = return . DropLayer . Drop
+mkLayer :: (Monad m, KnownNat b, KnownNat i) => Double -> m (Layer b i i (DropLayer b i))
+mkLayer = return . Drop . DropLayer

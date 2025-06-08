@@ -12,10 +12,10 @@ import GHC.TypeLits
 import Heuron.V2.Layer
 import qualified Heuron.V2.Network as Network
 
-data Block b ls af op where
-  Block :: Network.Network b ls -> af -> op -> Block b ls af op
+data ResidualBlock b ls af op where
+  ResidualBlock :: Network.Network b ls -> af -> op -> ResidualBlock b ls af op
 
-newtype instance Layer (b :: Nat) (i :: Nat) (n :: Nat) (Block b ls af op) = Residual (Block b ls af op)
+newtype instance Layer (b :: Nat) (i :: Nat) (n :: Nat) (ResidualBlock b ls af op) = Residual (ResidualBlock b ls af op)
 
 data BlockBuilderState (i :: Nat) (n :: Nat) af op = BlockBuilderState
   { _blockAf :: !(Maybe af),
@@ -40,17 +40,17 @@ mkBlock ::
     KnownNat i,
     KnownNat n,
     Monad m,
-    Network.CheckValidLayers (Layer b i n (Block b ls af op)) (Network.InputLayerOfNetwork ls),
-    CheckCompatibleOutput (Layer b i n (Block b ls af op)) (Network.OutputLayerOfNetwork ls)
+    Network.CheckValidLayers (Layer b i n (ResidualBlock b ls af op)) (Network.InputLayerOfNetwork ls),
+    CheckCompatibleOutput (Layer b i n (ResidualBlock b ls af op)) (Network.OutputLayerOfNetwork ls)
   ) =>
   BlockT b i n af op m (Network.Network b ls) ->
-  m (Layer b i n (Block b ls af op))
+  m (Layer b i n (ResidualBlock b ls af op))
 mkBlock builder = evalStateT (builder >>= initialize) def
   where
     initialize net = do
       af <- use blockAf >>= maybe (error "no activation function set") pure
       op <- use blockOp >>= maybe (error "no optimizer set") pure
-      return $ Residual $ Block net af op
+      return $ Residual $ ResidualBlock net af op
 
 inputs :: forall i n b af op m. (KnownNat i, Monad m) => BlockT b i n af op m ()
 inputs = return ()

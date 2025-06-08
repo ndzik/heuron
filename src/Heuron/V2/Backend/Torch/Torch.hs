@@ -122,9 +122,9 @@ instance (KnownNat i, KnownNat n, ShowActivation af) => TranslateLayerCode b i n
 
 instance
   (KnownNat i) =>
-  TranslateLayerCode b i i (Drop.Drop b i)
+  TranslateLayerCode b i i (Drop.DropLayer b i)
   where
-  translateLayer (Drop.DropLayer (Drop.Drop p)) = do
+  translateLayer (Drop.Drop (Drop.DropLayer p)) = do
     idx <- gets counter
     modify $ \s ->
       s
@@ -137,9 +137,9 @@ instance
   ( Translatable PyTorchGen (Network b ls),
     ShowActivation af
   ) =>
-  TranslateLayerCode b i n (Residual.Block b ls af op)
+  TranslateLayerCode b i n (Residual.ResidualBlock b ls af op)
   where
-  translateLayer (Residual.Residual (Residual.Block net af _op)) = do
+  translateLayer (Residual.Residual (Residual.ResidualBlock net af _op)) = do
     idx <- gets counter
     modify $ \s ->
       s

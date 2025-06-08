@@ -185,7 +185,7 @@ ann :: Network
       batchSize
       16
       16
-      (Block
+      (ResidualBlock
          batchSize
          '[Layer
              batchSize
@@ -205,7 +205,7 @@ ann :: Network
                 hiddenNeuronCount
                 ReLU
                 StochasticGradientDescent),
-           Layer batchSize 16 16 (Drop batchSize 16),
+           Layer batchSize 16 16 (DropLayer batchSize 16),
            Layer
              batchSize
              hiddenNeuronCount
