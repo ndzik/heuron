@@ -54,3 +54,9 @@ mkBlock builder = evalStateT (builder >>= initialize) def
 
 inputs :: forall i n b af op m. (KnownNat i, Monad m) => BlockT b i n af op m ()
 inputs = return ()
+
+activationFunction :: (Monad m) => af -> BlockT b i n af op m ()
+activationFunction af = modify $ \s -> s {_blockAf = Just af}
+
+optimizerFunction :: (Monad m) => op -> BlockT b i n af op m ()
+optimizerFunction op = modify $ \s -> s {_blockOp = Just op}

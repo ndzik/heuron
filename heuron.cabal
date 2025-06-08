@@ -48,6 +48,8 @@ library
                     , Heuron.V2.Residual
                     , Heuron.V2.Drop
                     , Heuron.V2.Backend
+                    , Heuron.V2.Backend.Torch
+                    , Heuron.V2.Backend.Torch.Torch
                     , Heuron.V2.Backend.Haskell
                     , Heuron.V2.Backend.Haskell.Haskell
                     , Heuron.V2.Backend.Haskell.State
@@ -80,6 +82,7 @@ library
                     , streaming-bytestring
                     , serialise
                     , data-default
+                    , text
     hs-source-dirs:   src
     default-language: Haskell2010
 
