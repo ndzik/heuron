@@ -139,12 +139,15 @@ We currently have the following API (not finalized):
     optimizerFunction (StochasticGradientDescent learningRate)
 
   resBlock <- Residual.mkBlock $ do
+    Residual.activationFunction ReLU
+    Residual.optimizerFunction (StochasticGradientDescent learningRate)
     inputLayer <- mkLayer $ do
       inputs @hiddenNeuronCount
       neuronsWith @hiddenNeuronCount $ weightsScaledBy (1 / 32)
+      activationFunction ReLU
       optimizerFunction (StochasticGradientDescent learningRate)
 
-    [hiddenLayer00, hiddenLayer01, hiddenLayer02] <- mkLayers 2 $ do
+    [hiddenLayer00, hiddenLayer01, hiddenLayer02] <- mkLayers 3 $ do
       neuronsWith @hiddenNeuronCount $ weightsScaledBy (1 / 16)
       activationFunction ReLU
       optimizerFunction (StochasticGradientDescent learningRate)
@@ -189,7 +192,10 @@ ann :: Network
              hiddenNeuronCount
              hiddenNeuronCount
              (LinearLayer
-                hiddenNeuronCount hiddenNeuronCount Any StochasticGradientDescent),
+                hiddenNeuronCount
+                hiddenNeuronCount
+                ReLU
+                StochasticGradientDescent),
            Layer
              batchSize
              hiddenNeuronCount
@@ -224,8 +230,8 @@ ann :: Network
              hiddenNeuronCount
              (LinearLayer
                 16 hiddenNeuronCount Softmax StochasticGradientDescent)]
-         Any
-         Any),
+         ReLU
+         StochasticGradientDescent),
     Layer
       batchSize
       hiddenNeuronCount
@@ -257,17 +263,84 @@ time reducing the general network concretizing it like, in this case:
 haskellAnn :: Network
   100
   '[Layer 100 784 16 ReLU StochasticGradientDescent,
-    Layer 100 16 16 Any Any,
+    Layer 100 16 16 ReLU StochasticGradientDescent, -- ResBlock
     Layer 100 16 16 ReLU StochasticGradientDescent,
     Layer 100 16 10 Softmax StochasticGradientDescent]
 ```
 
-`Layer 100 16 16 Any Any` is a placeholder, since I did not yet come around implementing the
-`Residual.Block` translator.
+The second layer is a placeholder, since I did not yet come around implementing the
+`Residual.Block` translator. This should provide a basic framework to do anything.
 
-This should provide a basic framework to do anything. For example: I will probably write a 
-`PyTorch` backend, which generates simple Python code. This way I do not reinvent the wheels
-and instead be piggybacked by a trusted, battle-tested implementation.
+## Heuron.V2.Backend.Torch
+
+I implemented translation via a `PyTorch` backend, which generates simple Python code.
+This way I do not reinvent the wheels and instead be piggybacked by a trusted, battle-tested implementation.
+
+The network from the previous example called with:
+
+```haskell
+  let ann = inputLayer :>: resBlock :>: hiddenLayer00 :=> outputLayer
+      code = Torch.runPyTorch ann
+  Torch.saveToModule "./torch_module.py" code
+```
+
+Creates the following file:
+
+```python
+import torch
+import torch.nn as nn
+
+
+class ResidualBlock1(nn.Module):
+    def __init__(self):
+        super().__init__()
+        self.fc0 = nn.Linear(16, 16)
+        self.fc1 = nn.Linear(16, 16)
+        self.dropout2 = nn.Dropout(p=0.25)
+        self.fc3 = nn.Linear(16, 16)
+        self.fc4 = nn.Linear(16, 16)
+        self.fc5 = nn.Linear(16, 16)
+
+    def forward(self, x):
+        residual = x
+        x = self.fc0(x)
+        x = torch.relu(x)
+        x = self.fc1(x)
+        x = torch.relu(x)
+        x = self.dropout2(x)
+        x = self.fc3(x)
+        x = torch.relu(x)
+        x = self.fc4(x)
+        x = torch.relu(x)
+        x = self.fc5(x)
+        x = torch.softmax(x, dim=1)
+        x = x + residual
+        x = torch.relu(x)
+        return x
+
+
+class Model(nn.Module):
+    def __init__(self):
+        super().__init__()
+        self.fc0 = nn.Linear(784, 16)
+        self.resblock1 = ResidualBlock1()
+        self.fc2 = nn.Linear(16, 16)
+        self.fc3 = nn.Linear(16, 10)
+
+    def forward(self, x):
+        x = self.fc0(x)
+        x = torch.relu(x)
+        x = self.resblock1(x)
+        x = torch.relu(x)
+        x = self.fc2(x)
+        x = torch.relu(x)
+        x = self.fc3(x)
+        x = torch.softmax(x, dim=1)
+        return x
+```
+
+There is still some work to do, but the basic idea and functionality is there for a
+correct by construction neural network description via Haskell.
 
 ## FAQ
 

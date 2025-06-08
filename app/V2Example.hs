@@ -104,9 +104,9 @@ executeV2Network = do
   let ann = inputLayer :>: resBlock :>: hiddenLayer00 :=> outputLayer
       code = Torch.runPyTorch ann
   Torch.saveToModule "./torch_module.py" code
-  print "Glorious ANN"
+  -- haskellAnn <- Backend.runHaskell (Backend.HaskellBackendState rng) $ Backend.translate ann
+  print "Amazing Heuron Stuff"
   where
-    -- haskellAnn <- Backend.runHaskell (Backend.HaskellBackendState rng) $ Backend.translate ann
     -- let initialTrainerState = TrainerState haskellAnn CategoricalCrossEntropy
 
     -- let producer env sendMsg = do
