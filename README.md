@@ -408,8 +408,7 @@ correct by construction neural network description via Haskell.
 
 # Haskell.V3
 
-V2 together with the PyTorch approach seems like a solid foundation, I still have to iron out some
-usage pattern and type constraints to make the use more ergonomic.
+V2 is proof enough for me to make this work. Thanks to [syedajafri1992's](https://www.reddit.com/r/haskell/comments/1l6ke0m/comment/mwufpqi/?utm_source=share&utm_medium=web3x&utm_name=web3xcss&utm_term=1&utm_content=share_button) comment I will consider [HaskTorch](http://hasktorch.org/) in a backend translator, which let's this all stay Haskell.
 
 ## FAQ
 
