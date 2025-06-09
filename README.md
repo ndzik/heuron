@@ -257,7 +257,7 @@ logic if the basic building blocks are not enough.
 Let's say I manually constrain my `ResidualBlock` to expect a certain input dimensionality, instead
 of letting GHC automagically derive
 
-```
+```haskell
   resBlock <- Residual.mkBlock $ do
     Residual.activationFunction ReLU
     Residual.optimizerFunction (StochasticGradientDescent learningRate)
