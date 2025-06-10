@@ -164,7 +164,7 @@ makeOpenGLWidget initNet color state = widget
         sizeReqW = expandSize 100 1
         sizeReqH = expandSize 100 1
 
-    render wenv node renderer =
+    render wenv node renderer = do
       when (_ogsLoaded state) $
         createRawTask renderer $
           doInScissor winSize dpr offset activeVp $

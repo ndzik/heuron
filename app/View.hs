@@ -22,14 +22,19 @@ buildUI we hm = widgetTree
     widgetTree =
       vstack
         [ hgrid
-            [ vstack [label "Network", openGLWidget $ hm ^. heuronModelNet]
+            [ vstack [label "Network" `styleBasic` [textSize 32], openGLWidget $ hm ^. heuronModelNet]
             ],
           vstack
             [ label "Metadata",
+              spacer,
               hgrid
-                [ vstack [label . pack $ printf "Epoch: %d/%d" (hm ^. heuronModelCurrentEpoch) (hm ^. heuronModelMaxEpochs)],
-                  vstack [label . pack . printf "Loss: %.4f" $ hm ^. heuronModelAvgLoss],
-                  vstack [label . pack . printf "Accuracy: %.3f" $ hm ^. heuronModelAccuracy]
+                [ vstack [flip styleBasic [textSize 12] . label . pack $ printf "Epoch: %d/%d" (hm ^. heuronModelCurrentEpoch) (hm ^. heuronModelMaxEpochs)] `styleBasic` [bgColor (rgbHex "#2c2d2e")],
+                  spacer `styleBasic` [bgColor bgCol],
+                  vstack [flip styleBasic [textSize 12] . label . pack . printf "Loss: %.4f" $ hm ^. heuronModelAvgLoss] `styleBasic` [bgColor (rgbHex "#2c2d2e")],
+                  spacer `styleBasic` [bgColor bgCol],
+                  vstack [flip styleBasic [textSize 12] . label . pack . printf "Accuracy: %.3f" $ hm ^. heuronModelAccuracy] `styleBasic` [bgColor (rgbHex "#2c2d2e")]
                 ]
             ]
         ]
+        `styleBasic` [padding 8, bgColor bgCol]
+    bgCol = rgbHex "#181a1b"

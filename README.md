@@ -53,7 +53,7 @@ will tell you something is wrong.
 
 ### Heuron.V1 - MNIST handwritten digits example
 
-![Heuron-Net-Training](https://github.com/ndzik/heuron/assets/33512740/216066d3-19b5-45a8-88d1-28f6c610790f)
+![Heuron-Net-Training](https://github.com/user-attachments/assets/b45e439e-0a76-45c2-8fdb-952a30c03f7b)
 
 The executable defined by default uses the training set from the [MNIST database for handwritten digits](http://yann.lecun.com/exdb/mnist/).
 Downloading the database and placing the training set in a `data/` folder within the directory
