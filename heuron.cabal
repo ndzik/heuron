@@ -94,6 +94,7 @@ executable heuron-exe
                  , View
                  , V1Example
                  , V2Example
+                 , V2ExamplePytorch
                  , OpenGL
                  , Types
 
