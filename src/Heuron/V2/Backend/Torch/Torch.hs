@@ -102,13 +102,26 @@ instance ShowActivation ReLU where
 instance ShowActivation Softmax where
   showActivation _ var = T.concat [var, " = torch.softmax(", var, ", dim=1)"]
 
-instance (KnownNat i, KnownNat n, ShowActivation af) => TranslateLayerCode b i n (LinearLayer i n af op) where
+class KnownShape (xs :: [Nat]) where
+  shapeVals :: Proxy xs -> [Integer]
+
+instance KnownShape '[] where
+  shapeVals _ = []
+
+instance (KnownNat x, KnownShape xs) => KnownShape (x ': xs) where
+  shapeVals _ = natVal (Proxy @x) : shapeVals (Proxy @xs)
+
+instance (KnownShape i, KnownShape n, ShowActivation af) => TranslateLayerCode b i n (LinearLayer i n af op) where
   translateLayer (Linear (LinearLayer _af _op _mods)) = do
     idx <- gets counter
     let layerName = T.pack $ printf "fc%d" idx
+        iDims = shapeVals (Proxy @i)
+        nDims = shapeVals (Proxy @n)
+        shapeStr = T.pack $ showTuple iDims
+        outStr = T.pack $ showTuple nDims
     modify $ \s ->
       s
-        { layerDefs = layerDefs s ++ [T.concat ["self.", layerName, " = nn.Linear(", T.pack (show i), ", ", T.pack (show n), ")"]],
+        { layerDefs = layerDefs s ++ [T.concat ["self.", layerName, " = nn.Linear(", shapeStr, ", ", outStr, ")"]],
           forwardDefs =
             forwardDefs s
               ++ [ T.concat ["x = self.", layerName, "(x)"],
@@ -116,14 +129,13 @@ instance (KnownNat i, KnownNat n, ShowActivation af) => TranslateLayerCode b i n
                  ],
           counter = idx + 1
         }
-    where
-      i = natVal (Proxy @i)
-      n = natVal (Proxy @n)
 
-instance
-  (KnownNat i) =>
-  TranslateLayerCode b i i (Drop.DropLayer b i)
-  where
+-- Helper for formatting shape as Python tuple
+showTuple :: [Integer] -> String
+showTuple [x] = show x
+showTuple xs = "(" ++ concatMap ((++ ", ") . show) (init xs) ++ show (last xs) ++ ")"
+
+instance TranslateLayerCode b i i (Drop.DropLayer b i) where
   translateLayer (Drop.Drop (Drop.DropLayer p)) = do
     idx <- gets counter
     modify $ \s ->

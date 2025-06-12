@@ -54,7 +54,7 @@ type family CheckCondition (b :: Bool) msg where
   CheckCondition 'True _ = ()
   CheckCondition 'False msg = TypeError msg
 
-type ValidInputForwarding :: Nat -> Nat -> Bool
+type ValidInputForwarding :: [Nat] -> [Nat] -> Bool
 type family ValidInputForwarding n i :: Bool where
   ValidInputForwarding n n = 'True
   ValidInputForwarding _ _ = 'False

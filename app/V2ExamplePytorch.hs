@@ -20,6 +20,7 @@ import Control.Monad.Except (ExceptT, runExceptT)
 import qualified Data.ByteString.Lazy as BSL
 import Data.Data (Proxy (..))
 import Data.Functor ((<&>))
+import Data.Kind (Constraint)
 import Digits
 import GHC.TypeLits (natVal)
 import GHC.TypeNats (KnownNat)
@@ -54,13 +55,13 @@ generateV2Pytorch = do
   -- Describe network.
   let learningRate = 0.25
   inputLayer <- mkLayer @batchSize $ do
-    inputs @pixelCount
-    neuronsWith @hiddenNeuronCount $ weightsScaledBy (1 / 784)
+    inputs @'[pixelCount]
+    neuronsWith @'[hiddenNeuronCount] $ weightsScaledBy (1 / 784)
     activationFunction ReLU
     optimizerFunction (StochasticGradientDescent learningRate)
 
   [hiddenLayer00] <- mkLayers 1 $ do
-    neuronsWith @hiddenNeuronCount $ weightsScaledBy (1 / 16)
+    neuronsWith @'[hiddenNeuronCount] $ weightsScaledBy (1 / 16)
     activationFunction ReLU
     optimizerFunction (StochasticGradientDescent learningRate)
 
@@ -68,26 +69,26 @@ generateV2Pytorch = do
     Residual.activationFunction ReLU
     Residual.optimizerFunction (StochasticGradientDescent learningRate)
     inputLayer <- mkLayer $ do
-      neuronsWith @hiddenNeuronCount $ weightsScaledBy (1 / 32)
+      neuronsWith @'[hiddenNeuronCount] $ weightsScaledBy (1 / 32)
       activationFunction ReLU
       optimizerFunction (StochasticGradientDescent learningRate)
 
     [hiddenLayer00, hiddenLayer01, hiddenLayer02] <- mkLayers 3 $ do
-      neuronsWith @hiddenNeuronCount $ weightsScaledBy (1 / 16)
+      neuronsWith @'[hiddenNeuronCount] $ weightsScaledBy (1 / 16)
       activationFunction ReLU
       optimizerFunction (StochasticGradientDescent learningRate)
 
     dropL <- Drop.mkLayer 0.25
 
     outputLayer <- mkLayer $ do
-      neurons @hiddenNeuronCount
+      neurons @'[hiddenNeuronCount]
       activationFunction ReLU
       optimizerFunction (StochasticGradientDescent learningRate)
 
     return $ inputLayer :>: hiddenLayer00 :>: dropL :>: hiddenLayer01 :>: hiddenLayer02 :=> outputLayer
 
   outputLayer <- mkLayer $ do
-    neurons @10
+    neurons @'[10]
     activationFunction Softmax
     optimizerFunction (StochasticGradientDescent learningRate)
 

@@ -15,9 +15,9 @@ import qualified Heuron.V2.Network as Network
 data ResidualBlock b ls af op where
   ResidualBlock :: Network.Network b ls -> af -> op -> ResidualBlock b ls af op
 
-newtype instance Layer (b :: Nat) (i :: Nat) (n :: Nat) (ResidualBlock b ls af op) = Residual (ResidualBlock b ls af op)
+newtype instance Layer (b :: Nat) (i :: [Nat]) (o :: [Nat]) (ResidualBlock b ls af op) = Residual (ResidualBlock b ls af op)
 
-data BlockBuilderState (i :: Nat) (n :: Nat) af op = BlockBuilderState
+data BlockBuilderState (i :: [Nat]) (n :: [Nat]) af op = BlockBuilderState
   { _blockAf :: !(Maybe af),
     _blockOp :: !(Maybe op)
   }
@@ -25,7 +25,7 @@ data BlockBuilderState (i :: Nat) (n :: Nat) af op = BlockBuilderState
 instance Default (BlockBuilderState i n af op) where
   def = BlockBuilderState Nothing Nothing
 
-type BlockT (b :: Nat) (i :: Nat) (n :: Nat) af op m a = StateT (BlockBuilderState i n af op) m a
+type BlockT (b :: Nat) (i :: [Nat]) (n :: [Nat]) af op m a = StateT (BlockBuilderState i n af op) m a
 
 type CheckCompatibleOutput :: * -> * -> Constraint
 type family CheckCompatibleOutput l ls where
@@ -38,17 +38,14 @@ type family CheckCompatibleInput l ls where
 makeLenses ''BlockBuilderState
 
 mkBlock ::
-  forall b i n m af op ls.
-  ( KnownNat b,
-    KnownNat i,
-    KnownNat n,
-    Monad m,
-    Network.CheckValidLayers (Layer b i n (ResidualBlock b ls af op)) (Network.InputLayerOfNetwork ls),
-    CheckCompatibleInput (Layer b i n (ResidualBlock b ls af op)) (Network.InputLayerOfNetwork ls),
-    CheckCompatibleOutput (Layer b i n (ResidualBlock b ls af op)) (Network.OutputLayerOfNetwork ls)
+  forall b i o m af op ls.
+  ( Monad m,
+    Network.CheckValidLayers (Layer b i o (ResidualBlock b ls af op)) (Network.InputLayerOfNetwork ls),
+    CheckCompatibleInput (Layer b i o (ResidualBlock b ls af op)) (Network.InputLayerOfNetwork ls),
+    CheckCompatibleOutput (Layer b i o (ResidualBlock b ls af op)) (Network.OutputLayerOfNetwork ls)
   ) =>
-  BlockT b i n af op m (Network.Network b ls) ->
-  m (Layer b i n (ResidualBlock b ls af op))
+  BlockT b i o af op m (Network.Network b ls) ->
+  m (Layer b i o (ResidualBlock b ls af op))
 mkBlock builder = evalStateT (builder >>= initialize) def
   where
     initialize net = do
@@ -56,7 +53,7 @@ mkBlock builder = evalStateT (builder >>= initialize) def
       op <- use blockOp >>= maybe (error "no optimizer set") pure
       return $ Residual $ ResidualBlock net af op
 
-inputs :: forall i n b af op m. (KnownNat i, Monad m) => BlockT b i n af op m ()
+inputs :: forall i n b af op m. (Monad m) => BlockT b i n af op m ()
 inputs = return ()
 
 activationFunction :: (Monad m) => af -> BlockT b i n af op m ()

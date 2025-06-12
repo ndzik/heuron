@@ -63,18 +63,18 @@ executeV2Network = do
   -- Describe network.
   let learningRate = 0.25
   inputLayer <- mkLayer @batchSize $ do
-    inputs @pixelCount
-    neuronsWith @hiddenNeuronCount $ weightsScaledBy (1 / 784)
+    inputs @'[pixelCount]
+    neuronsWith @'[hiddenNeuronCount] $ weightsScaledBy (1 / 784)
     activationFunction ReLU
     optimizerFunction (StochasticGradientDescent learningRate)
 
   [hiddenLayer00] <- mkLayers 1 $ do
-    neuronsWith @hiddenNeuronCount $ weightsScaledBy (1 / 16)
+    neuronsWith @'[hiddenNeuronCount] $ weightsScaledBy (1 / 16)
     activationFunction ReLU
     optimizerFunction (StochasticGradientDescent learningRate)
 
   outputLayer <- mkLayer $ do
-    neurons @10
+    neurons @'[10]
     activationFunction Softmax
     optimizerFunction (StochasticGradientDescent learningRate)
 

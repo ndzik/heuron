@@ -8,18 +8,18 @@ import GHC.TypeLits
 
 type LayerSpec = *
 
-data family Layer (b :: Nat) (i :: Nat) (n :: Nat) (l :: LayerSpec)
+data family Layer (b :: Nat) (i :: [Nat]) (o :: [Nat]) (l :: LayerSpec)
 
-data LinearLayer (i :: Nat) (n :: Nat) af op = LinearLayer af op [ModifierAction i n]
+data LinearLayer (i :: [Nat]) (o :: [Nat]) af op = LinearLayer af op [ModifierAction i o]
 
-newtype instance Layer (b :: Nat) (i :: Nat) (n :: Nat) (LinearLayer i n af op) = Linear (LinearLayer i n af op)
+newtype instance Layer (b :: Nat) (i :: [Nat]) (n :: [Nat]) (LinearLayer i n af op) = Linear (LinearLayer i n af op)
 
-type LayerT (i :: Nat) (n :: Nat) af op m a = StateT (LayerBuilderState i n af op) m a
+type LayerT (i :: [Nat]) (o :: [Nat]) af op m a = StateT (LayerBuilderState i o af op) m a
 
-data ModifierAction (i :: Nat) (n :: Nat) = ScaleWeights Double | ScaleBias Double
+data ModifierAction (i :: [Nat]) (o :: [Nat]) = ScaleWeights Double | ScaleBias Double
 
-data LayerBuilderState (i :: Nat) (n :: Nat) af op = LayerBuilderState
-  { _layerModifierActions :: ![ModifierAction i n],
+data LayerBuilderState (i :: [Nat]) (o :: [Nat]) af op = LayerBuilderState
+  { _layerModifierActions :: ![ModifierAction i o],
     _layerAf :: !(Maybe af),
     _layerOp :: !(Maybe op)
   }
@@ -31,13 +31,13 @@ makeLenses ''LayerBuilderState
 
 mkLayers ::
   forall n b af op m.
-  (KnownNat n, Monad m) =>
+  (Monad m) =>
   Int ->
   LayerT n n af op m () ->
   m [Layer b n n (LinearLayer n n af op)]
 mkLayers n = replicateM n . mkLayer
 
-mkLayer :: forall b i n m af op. (KnownNat i, KnownNat n, Monad m) => LayerT i n af op m () -> m (Layer b i n (LinearLayer i n af op))
+mkLayer :: forall b i n m af op. (Monad m) => LayerT i n af op m () -> m (Layer b i n (LinearLayer i n af op))
 mkLayer builder = evalStateT (builder >> initialize) def
   where
     initialize = do
@@ -45,31 +45,31 @@ mkLayer builder = evalStateT (builder >> initialize) def
       op <- use layerOp >>= maybe (error "no optimizer set") pure
       Linear . LinearLayer af op <$> use layerModifierActions
 
-inputs :: forall i n af op m. (KnownNat i, Monad m) => LayerT i n af op m ()
+inputs :: forall i n af op m. (Monad m) => LayerT i n af op m ()
 inputs = return ()
 
-type LayerModifierT (n :: Nat) (i :: Nat) m a = StateT [ModifierAction i n] m a
+type LayerModifierT (o :: [Nat]) (i :: [Nat]) m a = StateT [ModifierAction i o] m a
 
 neuronsWith ::
-  forall n i af op m.
-  (KnownNat n, KnownNat i, Monad m) =>
-  LayerModifierT n i m () ->
-  LayerT i n af op m ()
+  forall o i af op m.
+  (Monad m) =>
+  LayerModifierT o i m () ->
+  LayerT i o af op m ()
 neuronsWith modifier = do
   modifierActions <- lift $ execStateT modifier []
   modify $ \s -> s {_layerModifierActions = modifierActions}
 
-neurons :: forall n i af op m. (KnownNat n, KnownNat i, Monad m) => LayerT i n af op m ()
+neurons :: forall o i af op m. (Monad m) => LayerT i o af op m ()
 neurons = return ()
 
-weightsScaledBy :: (KnownNat n, KnownNat i, Monad m) => Double -> LayerModifierT n i m ()
+weightsScaledBy :: (Monad m) => Double -> LayerModifierT o i m ()
 weightsScaledBy s = modify (ScaleWeights s :)
 
-biasScaledBy :: (KnownNat n, KnownNat i, Monad m) => Double -> LayerModifierT n i m ()
+biasScaledBy :: (Monad m) => Double -> LayerModifierT o i m ()
 biasScaledBy s = modify (ScaleBias s :)
 
-activationFunction :: (Monad m) => af -> LayerT i n af op m ()
+activationFunction :: (Monad m) => af -> LayerT i o af op m ()
 activationFunction af = modify $ \s -> s {_layerAf = Just af}
 
-optimizerFunction :: (Monad m) => op -> LayerT i n af op m ()
+optimizerFunction :: (Monad m) => op -> LayerT i o af op m ()
 optimizerFunction op = modify $ \s -> s {_layerOp = Just op}

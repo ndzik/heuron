@@ -28,7 +28,7 @@ type role Layer nominal nominal nominal representational nominal
 
 -- | Layers state, where b is the number samples per batch, i the number of
 -- inputs and n the number of neurons.
-data Layer (b :: k) (i :: k) (n :: k) af op = Layer
+data Layer (b :: Nat) (i :: Nat) (n :: Nat) af op = Layer
   { -- | Weights of the layer as a matrix of size m x n, where n is the number
     -- of neurons and m is the number of inputs. Each neuron is identified by
     -- the row index.
