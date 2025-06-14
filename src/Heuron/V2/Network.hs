@@ -14,15 +14,15 @@ type family (xs :: [k]) <++> (ys :: [k]) :: [k] where
 data Network (b :: Nat) ls where
   (:+:) :: (CheckCompatibleBoundary ls ls') => Network b ls -> Network b ls' -> Network b (ls <++> ls')
   (:>:) ::
-    (CheckValidLayers (Layer b i n l) (Layer b i' n' l'), n ~ i') =>
-    Layer b i n l ->
-    Network b (Layer b i' n' l' ': ls) ->
-    Network b (Layer b i n l ': Layer b i' n' l' ': ls)
+    (CheckValidLayers (Layer b i o l) (Layer b i' o' l'), o ~ i') =>
+    Layer b i o l ->
+    Network b (Layer b i' o' l' ': ls) ->
+    Network b (Layer b i o l ': Layer b i' o' l' ': ls)
   (:=>) ::
-    (CheckValidLayers (Layer b i n l) (Layer b i' n' l'), n ~ i') =>
-    Layer b i n l ->
-    Layer b i' n' l' ->
-    Network b '[Layer b i n l, Layer b i' n' l']
+    (CheckValidLayers (Layer b i o l) (Layer b i' o' l'), o ~ i') =>
+    Layer b i o l ->
+    Layer b i' o' l' ->
+    Network b '[Layer b i o l, Layer b i' o' l']
 
 infixr 5 :>:
 
@@ -35,7 +35,7 @@ type family CheckCompatibleBoundary ls ls' where
 
 type CheckValidLayers :: * -> * -> Constraint
 type family CheckValidLayers l1 l2 where
-  CheckValidLayers (Layer b i n l) (Layer b i' n' l') = CheckCondition (ValidInputForwarding n i') (MismatchedInputSizeErr n i')
+  CheckValidLayers (Layer b i o l) (Layer b i' o' l') = CheckCondition (ValidInputForwarding o i') (MismatchedInputSizeErr o i')
 
 type InputLayerOfNetwork :: [*] -> *
 type family InputLayerOfNetwork ls where

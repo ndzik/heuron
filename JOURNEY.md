@@ -1,0 +1,419 @@
+# Journey
+
+This document tracks the journey of Heuron and its development process.
+
+# Initial README
+
+> This is the initial README I had when starting out, for sake of clarity and to keep the information I
+outsourced the information here so the main README stays relevant for the current version.
+
+
+This is a prototype implementation for describing neural networks in Haskell.
+The basic idea is to have a backend agnostic DSL, which can have FPGAs, GPUs or CPUs as a target.
+
+## Heuron.V1
+
+V1 is an experiment of how I can achieve my goal of **correct by construction** neural networks.
+For the meantime, V1 is a purely CPU based implementation using 100% Haskell code.
+
+  * Heuron.V1.Single:
+    - Initial API for describing a feed-forward neural net without backpropagation primitives
+      on singular observations, i.e. batch size of 1. This will ultimately be removed together
+      with all of V1, when V2 is realized.
+  * Heuron.V1.Batched:
+    - This contains a feed-forward neural net with training capabilities using backpropagation.
+      The theory of how to realize and implement a neural net is not difficult, the complex
+      part was how I could lift most of the construction into the type-level s.t. the compiler
+      has all information available to prohibit the user from describing NNs that are:
+        * unsupported
+        * contain incompatible layers:
+          * This includes forward & backward pass separately
+
+```haskell
+  let ann =
+        inputLayer ReLU StochasticGradientDescent
+          :>: hiddenLayer ReLU StochasticGradientDescent
+          :>: hiddenLayer ReLU StochasticGradientDescent
+          :>: hiddenLayer ReLU StochasticGradientDescent
+            =| outputLayer Softmax StochasticGradientDescent
+  -- > :t ann
+  ann :: Network
+    b
+    '[Layer b 6 3 ReLU StochasticGradientDescent,
+      Layer b 3 3 ReLU StochasticGradientDescent,
+      Layer b 3 3 ReLU StochasticGradientDescent,
+      Layer b 3 3 ReLU StochasticGradientDescent,
+      Layer b 3 2 Softmax StochasticGradientDescent]
+```
+
+In the example we describe an ANN with three hidden layers. The input layer
+expects 6 inputs and contains 3 neurons. `b` is the batchsize with which this
+network will be trained. Since by the time of construction the batchsize might
+be unknown it is left as an ambiguous type-parameter.
+What is important to note is, that one can always ask the compiler to show a
+description of ones neural network. Each layer can have its own activation
+function (ReLU, Softmax, or whatever might be implement by a library user on
+his own data-type) and optimizer (StochasticGradientDescent, etc.).
+
+If the typeclasses are not implemented or the network description does not
+adhere to certain constraints which guarantee correct networks, the compiler
+will tell you something is wrong.
+
+### Heuron.V1 - MNIST handwritten digits example
+
+![Heuron-Net-Training](https://github.com/user-attachments/assets/b45e439e-0a76-45c2-8fdb-952a30c03f7b)
+
+The executable defined by default uses the training set from the [MNIST database for handwritten digits](http://yann.lecun.com/exdb/mnist/).
+Downloading the database and placing the training set in a `data/` folder within the directory
+where `heuron` is started, will train a simple ANN on said dataset. This is a practical example
+of `Heuron.V1` usage. The above picture draws the current network parameters during training.
+
+The network defined is of the following type:
+
+```haskell
+ann :: Network
+  batchSize
+  '[Layer 100 pixelCount        hiddenNeuronCount ReLU    StochasticGradientDescent,
+    Layer 100 hiddenNeuronCount hiddenNeuronCount ReLU    StochasticGradientDescent,
+    Layer 100 hiddenNeuronCount hiddenNeuronCount ReLU    StochasticGradientDescent,
+    Layer 100 hiddenNeuronCount 10                Softmax StochasticGradientDescent]
+```
+
+An ANN with a batchSize of `100`, an input layer expecting `pixelCount` inputs
+containing `hiddenNeuronCount` neurons, using `ReLU` as its activation function
+and `StochasticGradientDescent` as an optimizer.
+The ANN has two hidden layers expecting `hiddenNeuronCount` inputs and containing `hiddenNeuronCount`
+neurons using the `ReLU` activation function and `StochasticGradientDescent` as an optimizer.
+The output layer expects `hiddenNeuronCount` inputs and contains `10` neurons using the
+`Softmax` activation function to finally classify each digit, also using `StochasticGradientDescent`
+as its optimizer.
+
+### Heuron.V1 Layer description
+Describing layers is rather easy. A few combinators are defined and more can be easily added.
+The above example uses the following code to describe the layers:
+
+```haskell
+-- Describe network.
+let learningRate = 0.25
+inputLayer <- mkLayer $ do
+  inputs @pixelCount
+  neuronsWith @hiddenNeuronCount rng $ weightsScaledBy (1 / 784)
+  activationF ReLU
+  optimizerFunction (StochasticGradientDescent learningRate)
+
+[hiddenLayer00, hiddenLayer01] <- mkLayers 2 $ do
+  neuronsWith @hiddenNeuronCount rng $ weightsScaledBy (1 / 32)
+  activationF ReLU
+  optimizerFunction (StochasticGradientDescent learningRate)
+
+outputLayer <- mkLayer $ do
+  neurons @10 rng
+  activationF Softmax
+  optimizerFunction (StochasticGradientDescent learningRate)
+```
+
+* `inputs` allows to explicitly define the amount of inputs a layer is expecting.
+* `neuronsWith` is required to set the number of neurons in this layer. `neurons` is a convenience
+  function if there is no need to further modify the initial weightdistribution. 
+* `activationF` allows to define the activation function.
+* `optimizerFunction` sets the optimizer function.
+
+Note how the hidden layers **do not** define their respective inputs. When the layers are used to
+describe the ANN, GHC will automagically narrow the number of inputs down to the number of outputs
+from the previous layer. One can, of course, still explicitly define the number of expected inputs
+and if they do not match, GHC will tell you that somewith is wrong with your network description.
+
+## Heuron.V2
+
+With my experience from implementing V1 I want to generalize the created interfaces and make
+them abstract enough to allow different net-generation backends. E.g. it should be possible
+to let this library generate a GPU optimized neural net for training and a CPU/FPGA targeted
+software net for execution. All with the same code.
+
+We currently have the following API (not finalized):
+
+```haskell
+  -- Describe network.
+  let learningRate = 0.25
+  inputLayer <- mkLayer @batchSize $ do
+    inputs @pixelCount
+    neuronsWith @hiddenNeuronCount $ weightsScaledBy (1 / 784)
+    activationFunction ReLU
+    optimizerFunction (StochasticGradientDescent learningRate)
+
+  [hiddenLayer00] <- mkLayers 1 $ do
+    neuronsWith @hiddenNeuronCount $ weightsScaledBy (1 / 16)
+    activationFunction ReLU
+    optimizerFunction (StochasticGradientDescent learningRate)
+
+  resBlock <- Residual.mkBlock $ do
+    Residual.activationFunction ReLU
+    Residual.optimizerFunction (StochasticGradientDescent learningRate)
+    inputLayer <- mkLayer $ do
+      inputs @hiddenNeuronCount
+      neuronsWith @hiddenNeuronCount $ weightsScaledBy (1 / 32)
+      activationFunction ReLU
+      optimizerFunction (StochasticGradientDescent learningRate)
+
+    [hiddenLayer00, hiddenLayer01, hiddenLayer02] <- mkLayers 3 $ do
+      neuronsWith @hiddenNeuronCount $ weightsScaledBy (1 / 16)
+      activationFunction ReLU
+      optimizerFunction (StochasticGradientDescent learningRate)
+
+    dropL <- Drop.mkLayer 0.25
+
+    outputLayer <- mkLayer $ do
+      neurons @hiddenNeuronCount
+      activationFunction Softmax
+      optimizerFunction (StochasticGradientDescent learningRate)
+
+    return $ inputLayer :>: hiddenLayer00 :>: dropL :>: hiddenLayer01 :>: hiddenLayer02 :=> outputLayer
+
+  outputLayer <- mkLayer $ do
+    neurons @10
+    activationFunction Softmax
+    optimizerFunction (StochasticGradientDescent learningRate)
+
+  let ann = inputLayer :>: resBlock :>: hiddenLayer00 :=> outputLayer
+  haskellAnn <- Backend.runHaskell (Backend.HaskellBackendState rng) $ Backend.translate ann
+```
+
+Asking GHC for the type of `ann` results in:
+
+```haskell
+ann :: Network
+  batchSize
+  '[Layer
+      batchSize
+      pixelCount
+      hiddenNeuronCount
+      (LinearLayer
+         pixelCount hiddenNeuronCount ReLU StochasticGradientDescent),
+    Layer
+      batchSize
+      16
+      16
+      (ResidualBlock
+         batchSize
+         '[Layer
+             batchSize
+             hiddenNeuronCount
+             hiddenNeuronCount
+             (LinearLayer
+                hiddenNeuronCount
+                hiddenNeuronCount
+                ReLU
+                StochasticGradientDescent),
+           Layer
+             batchSize
+             hiddenNeuronCount
+             hiddenNeuronCount
+             (LinearLayer
+                hiddenNeuronCount
+                hiddenNeuronCount
+                ReLU
+                StochasticGradientDescent),
+           Layer batchSize 16 16 (DropLayer batchSize 16),
+           Layer
+             batchSize
+             hiddenNeuronCount
+             hiddenNeuronCount
+             (LinearLayer
+                hiddenNeuronCount
+                hiddenNeuronCount
+                ReLU
+                StochasticGradientDescent),
+           Layer
+             batchSize
+             hiddenNeuronCount
+             hiddenNeuronCount
+             (LinearLayer
+                hiddenNeuronCount
+                hiddenNeuronCount
+                ReLU
+                StochasticGradientDescent),
+           Layer
+             batchSize
+             16
+             hiddenNeuronCount
+             (LinearLayer
+                16 hiddenNeuronCount Softmax StochasticGradientDescent)]
+         ReLU
+         StochasticGradientDescent),
+    Layer
+      batchSize
+      hiddenNeuronCount
+      hiddenNeuronCount
+      (LinearLayer
+         hiddenNeuronCount
+         hiddenNeuronCount
+         ReLU
+         StochasticGradientDescent),
+    Layer
+      batchSize
+      16
+      10
+      (LinearLayer 16 10 Softmax StochasticGradientDescent)]
+```
+
+GHCs constraint solver guarentees that the network is correct by construction. `ann` is a general
+description of a network and can be extended on the user-side with custom layers doing arbitrary
+logic if the basic building blocks are not enough.
+
+## Correct by construction
+
+Let's say I manually constrain my `ResidualBlock` to expect a certain input dimensionality, instead
+of letting GHC automagically derive
+
+```haskell
+  resBlock <- Residual.mkBlock $ do
+    Residual.activationFunction ReLU
+    Residual.optimizerFunction (StochasticGradientDescent learningRate)
+    Residual.inputs @420
+    -- ^ I manually restrict the inputs for the ResidualBlock to be `420`.
+    inputLayer <- mkLayer $ do
+      -- inputs @hiddenNeuronCount
+      -- ^ This is not required, the constraint solver will unify the expected
+      --   input dimension with what is required by the network. One can still
+      --   be explicit in his actions and tell GHC what to do.
+      neuronsWith @hiddenNeuronCount $ weightsScaledBy (1 / 32)
+      activationFunction ReLU
+      optimizerFunction (StochasticGradientDescent learningRate)
+
+    [hiddenLayer00, hiddenLayer01, hiddenLayer02] <- mkLayers 3 $ do
+      neuronsWith @hiddenNeuronCount $ weightsScaledBy (1 / 16)
+      activationFunction ReLU
+      optimizerFunction (StochasticGradientDescent learningRate)
+
+    dropL <- Drop.mkLayer 0.25
+
+    outputLayer <- mkLayer $ do
+      neurons @hiddenNeuronCount
+      activationFunction Softmax
+      optimizerFunction (StochasticGradientDescent learningRate)
+
+    return $ inputLayer :>: hiddenLayer00 :>: dropL :>: hiddenLayer01 :>: hiddenLayer02 :=> outputLayer
+```
+
+I added two comments, the first one below `Residual.inputs @420` will let GHC complain:
+
+```haskell
+Diagnostics:
+1. • Mismatched input size: 16 /= 420
+     Note: You are trying to pipe the output of a layer with 16 neurons into a layer which expects 420 inputs.
+``` 
+
+Notably, this error is emitted where the layer is defined. Furthermore, when we write the network construction
+where each layer occupies its own line:
+
+```haskell
+  let ann =
+        inputLayer
+          :>: resBlock -- <- Another error is emitted here (I know which layer is problemantic).
+          :>: hiddenLayer00
+          :=> outputLayer
+      code = Torch.runPyTorch ann
+```
+
+with the error:
+
+```haskell
+Diagnostics:
+1. • Couldn't match type ‘16’ with ‘420’ arising from a use of ‘:>:’
+```
+
+This should provide enough information to pinpoint the culprit and fix any issues.
+
+The fact that this is a *general description* results in a rather bloated type with lots of
+redundancy (mind the `Layer batchSize inputSize outputSize`) which preceed every concrete layer
+definition. I don't know if there is a way around that.
+
+The `Backend.runHaskell` is a static interpreter which _generates Haskell_ on the fly at compile
+time reducing the general network concretizing it like, in this case:
+
+```haskell
+haskellAnn :: Network
+  100
+  '[Layer 100 784 16 ReLU StochasticGradientDescent,
+    Layer 100 16 16 ReLU StochasticGradientDescent, -- ResBlock
+    Layer 100 16 16 ReLU StochasticGradientDescent,
+    Layer 100 16 10 Softmax StochasticGradientDescent]
+```
+
+The second layer is a placeholder, since I did not yet come around implementing the
+`Residual.Block` translator. This should provide a basic framework to do anything.
+
+## Heuron.V2.Backend.Torch
+
+I implemented translation via a `PyTorch` backend, which generates simple Python code.
+This way I do not reinvent the wheels and instead be piggybacked by a trusted, battle-tested implementation.
+
+The network from the previous example called with:
+
+```haskell
+  let ann = inputLayer :>: resBlock :>: hiddenLayer00 :=> outputLayer
+      code = Torch.runPyTorch ann
+  Torch.saveToModule "./torch_module.py" code
+```
+
+Creates the following file:
+
+```python
+import torch
+import torch.nn as nn
+
+
+class ResidualBlock1(nn.Module):
+    def __init__(self):
+        super().__init__()
+        self.fc0 = nn.Linear(16, 16)
+        self.fc1 = nn.Linear(16, 16)
+        self.dropout2 = nn.Dropout(p=0.25)
+        self.fc3 = nn.Linear(16, 16)
+        self.fc4 = nn.Linear(16, 16)
+        self.fc5 = nn.Linear(16, 16)
+
+    def forward(self, x):
+        residual = x
+        x = self.fc0(x)
+        x = torch.relu(x)
+        x = self.fc1(x)
+        x = torch.relu(x)
+        x = self.dropout2(x)
+        x = self.fc3(x)
+        x = torch.relu(x)
+        x = self.fc4(x)
+        x = torch.relu(x)
+        x = self.fc5(x)
+        x = torch.softmax(x, dim=1)
+        x = x + residual
+        x = torch.relu(x)
+        return x
+
+
+class Model(nn.Module):
+    def __init__(self):
+        super().__init__()
+        self.fc0 = nn.Linear(784, 16)
+        self.resblock1 = ResidualBlock1()
+        self.fc2 = nn.Linear(16, 16)
+        self.fc3 = nn.Linear(16, 10)
+
+    def forward(self, x):
+        x = self.fc0(x)
+        x = torch.relu(x)
+        x = self.resblock1(x)
+        x = torch.relu(x)
+        x = self.fc2(x)
+        x = torch.relu(x)
+        x = self.fc3(x)
+        x = torch.softmax(x, dim=1)
+        return x
+```
+
+There is still some work to do, but the basic idea and functionality is there for a
+correct by construction neural network description via Haskell.
+
+# Haskell.V3
+
+V2 is proof enough for me to make this work. Thanks to [syedajafri1992's](https://www.reddit.com/r/haskell/comments/1l6ke0m/comment/mwufpqi/?utm_source=share&utm_medium=web3x&utm_name=web3xcss&utm_term=1&utm_content=share_button) comment I will consider [HaskTorch](http://hasktorch.org/) in a backend translator, which let's this all stay Haskell.

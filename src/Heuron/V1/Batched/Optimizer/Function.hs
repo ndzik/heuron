@@ -51,3 +51,7 @@ data StochasticGradientDescentMomentum = StochasticGradientDescentMomentum
   deriving (Generic, Show, Eq)
 
 instance Serialise StochasticGradientDescentMomentum
+
+data NoOptimizer = NoOptimizer deriving (Generic, Show, Eq)
+
+instance Serialise NoOptimizer

@@ -1,12 +1,24 @@
-module Heuron.V2.Transform () where
+module Heuron.V2.Transform where
 
+import Control.Monad.State
+import Data.Proxy
 import GHC.TypeLits
+import Heuron.V2.Layer hiding (mkLayer)
 
-data Transform :: * -> * -> * where
-  Identity :: Transform a a
-  Normalize :: Transform a a
-  Compose :: Transform a b -> Transform b c -> Transform a c
+data TransformLayer b i o where
+  TransformLayer :: TransformLayer b i o
 
-infixr 9 :.:
+newtype instance Layer (b :: Nat) (i :: [Nat]) (o :: [Nat]) (TransformLayer b i o) = Transform (TransformLayer b i o)
 
-type (:.:) = Compose
+data TransformState b i o = TransformState
+
+type TransformT (b :: Nat) (i :: [Nat]) (o :: [Nat]) m a = StateT (TransformState b i o) m a
+
+mkLayer :: forall b i o m a. (Monad m) => TransformT b i o m a -> m (Layer b i o (TransformLayer b i o))
+mkLayer builder = evalStateT (builder >> return (Transform TransformLayer)) TransformState
+
+output :: forall o b i m. (Monad m) => TransformT b i o m ()
+output = return ()
+
+input :: forall i o b m. (Monad m) => TransformT b i o m ()
+input = return ()
