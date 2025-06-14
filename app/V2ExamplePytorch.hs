@@ -37,6 +37,7 @@ import qualified Heuron.V2.Backend.Haskell as Backend
 import qualified Heuron.V2.Backend.Torch as Torch
 import qualified Heuron.V2.Drop as Drop
 import qualified Heuron.V2.Residual as Residual
+import qualified Heuron.V2.Transform as Transform
 import Linear.V
 import Monomer
 import Streaming (liftIO)
@@ -62,6 +63,13 @@ generateV2Pytorch = do
 
   [hiddenLayer00] <- mkLayers 1 $ do
     neuronsWith @'[hiddenNeuronCount] $ weightsScaledBy (1 / 16)
+    activationFunction ReLU
+    optimizerFunction (StochasticGradientDescent learningRate)
+
+  reshapeLayer <- Transform.mkLayer $ do
+    Transform.output @'[28, 28, 28]
+
+  [hiddenLayer01, hiddenLayer02] <- mkLayers 2 $ do
     activationFunction ReLU
     optimizerFunction (StochasticGradientDescent learningRate)
 
@@ -92,6 +100,13 @@ generateV2Pytorch = do
     activationFunction Softmax
     optimizerFunction (StochasticGradientDescent learningRate)
 
-  let ann = inputLayer :>: resBlock :>: hiddenLayer00 :=> outputLayer
+  let ann =
+        inputLayer
+          :>: reshapeLayer
+          :>: hiddenLayer01
+          :>: resBlock
+          :>: hiddenLayer00
+          :=> outputLayer
       code = Torch.runPyTorch ann
   Torch.saveToModule "./torch_module.py" code
+  print "PyTorch module written."

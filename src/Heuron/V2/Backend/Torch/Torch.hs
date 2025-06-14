@@ -16,6 +16,7 @@ import qualified Heuron.V2.Drop as Drop
 import Heuron.V2.Layer
 import Heuron.V2.Network
 import qualified Heuron.V2.Residual as Residual
+import qualified Heuron.V2.Transform as Transform
 import Text.Printf
 
 newtype PyTorchGen a = PyTorchGen {unGen :: State PyTorchState a}
@@ -77,18 +78,16 @@ instance
 instance
   ( TranslateLayerCode b i n l,
     TranslateLayerCode b i' n' l',
-    Translatable PyTorchGen (Network b (Layer b i'' n'' l'' ': ls)),
-    ls ~ (z ': zs) -- ensures at least one more layer
+    Translatable PyTorchGen (Network b (Layer b i' n' l' ': Layer b i'' n'' l'' ': ls))
   ) =>
   -- We have to explicitly match the number of layers here, otherwise the
   -- compiler does not know which instance to use.
   Translatable PyTorchGen (Network b (Layer b i n l ': Layer b i' n' l' ': Layer b i'' n'' l'' ': ls))
   where
   type TargetStructure PyTorchGen (Network b (Layer b i n l ': Layer b i' n' l' ': Layer b i'' n'' l'' ': ls)) = ()
-  translate (l0 :>: l1 :>: ls) = do
+  translate (l0 :>: rest) = do
     translateLayer l0
-    translateLayer l1
-    void $ translate ls
+    void $ translate rest
 
 class TranslateLayerCode b i n l where
   translateLayer :: Layer b i n l -> PyTorchGen ()
@@ -128,6 +127,19 @@ instance (KnownShape i, KnownShape n, ShowActivation af) => TranslateLayerCode b
                    showActivation _af "x"
                  ],
           counter = idx + 1
+        }
+
+instance (KnownShape i, KnownShape o) => TranslateLayerCode b i o (Transform.TransformLayer b i o) where
+  translateLayer (Transform.Transform _) = do
+    let targetShape = shapeVals (Proxy @o)
+        shapeStr = T.pack $ showTuple targetShape
+    modify $ \s ->
+      s
+        { forwardDefs =
+            forwardDefs s
+              ++ [ "# transform layer",
+                   "x = x.view(" <> shapeStr <> ")"
+                 ]
         }
 
 -- Helper for formatting shape as Python tuple

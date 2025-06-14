@@ -29,18 +29,17 @@ type BlockT (b :: Nat) (i :: [Nat]) (n :: [Nat]) af op m a = StateT (BlockBuilde
 
 type CheckCompatibleOutput :: * -> * -> Constraint
 type family CheckCompatibleOutput l ls where
-  CheckCompatibleOutput (Layer b i n l) (Layer b i' n' l') = (n ~ n')
+  CheckCompatibleOutput (Layer b i o l) (Layer b i' o' l') = (o ~ o')
 
 type CheckCompatibleInput :: * -> * -> Constraint
 type family CheckCompatibleInput l ls where
-  CheckCompatibleInput (Layer b i n l) (Layer b i' n' l') = (i ~ i')
+  CheckCompatibleInput (Layer b i o l) (Layer b i' o' l') = (i ~ i')
 
 makeLenses ''BlockBuilderState
 
 mkBlock ::
   forall b i o m af op ls.
   ( Monad m,
-    Network.CheckValidLayers (Layer b i o (ResidualBlock b ls af op)) (Network.InputLayerOfNetwork ls),
     CheckCompatibleInput (Layer b i o (ResidualBlock b ls af op)) (Network.InputLayerOfNetwork ls),
     CheckCompatibleOutput (Layer b i o (ResidualBlock b ls af op)) (Network.OutputLayerOfNetwork ls)
   ) =>

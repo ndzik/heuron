@@ -62,6 +62,8 @@ class (Differentiable a) => BackpropableFunction a where
 class (BackpropableFunction a) => ActivationFunction a where
   activation :: (KnownNat b, KnownNat n, Dim b, Dim n) => a -> (V b (V n Double) -> V b (V n Double))
 
+data NoActivation = NoActivation deriving (Generic, Show, Eq)
+
 data ReLU = ReLU deriving (Generic, Show, Eq)
 
 instance Serialise ReLU
